@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RSU Wealth Forecaster</title>
+    <title>RSU Calculator</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -120,7 +120,7 @@
 
 <div class="container">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-        <h1>RSU Wealth Forecaster</h1>
+        <h1>RSU Forecaster</h1>
         <div style="font-size:0.9rem; color:var(--text-muted);">Today: <span id="currentDateDisplay"></span></div>
     </div>
 
@@ -193,9 +193,9 @@
             </div>
 
             <div class="card">
-                <h2>Projected Wealth Growth (5 Years)</h2>
+                <h2>Projected Growth (5 Years)</h2>
                 <div class="chart-container">
-                    <canvas id="wealthChart"></canvas>
+                    <canvas id="growthChart"></canvas>
                 </div>
             </div>
 
@@ -501,7 +501,7 @@
     }
 
     function renderChart(events) {
-        const ctx = document.getElementById('wealthChart').getContext('2d');
+        const ctx = document.getElementById('growthChart').getContext('2d');
         
         // 5 Years Out
         const limitDate = new Date(today);
@@ -543,7 +543,7 @@
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'Projected Vested Wealth',
+                    label: 'Projected Vested Growth',
                     data: dataVested,
                     backgroundColor: 'rgba(56, 189, 248, 0.5)',
                     borderColor: '#38bdf8',
