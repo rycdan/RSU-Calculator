@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RSU Vesting Calculator</title>
+    <title>RSU Vesting Calculator & Forecaster</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -26,27 +27,19 @@
             line-height: 1.5;
         }
 
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-
-        h1, h2, h3 { margin-top: 0; }
-        
-        h1 { font-size: 1.8rem; margin-bottom: 1.5rem; color: var(--accent); }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: var(--accent); }
         h2 { font-size: 1.2rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
 
-        /* Grid Layout */
         .grid {
             display: grid;
             gap: 20px;
             grid-template-columns: 1fr;
         }
-        @media (min-width: 768px) {
-            .grid { grid-template-columns: 1fr 2fr; }
+        @media (min-width: 1000px) {
+            .grid { grid-template-columns: 350px 1fr; }
         }
 
-        /* Cards */
         .card {
             background: var(--card-bg);
             border-radius: 8px;
@@ -56,9 +49,8 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
-        /* Inputs */
         .input-group { margin-bottom: 15px; }
-        label { display: block; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 5px; }
+        label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px; }
         input, select {
             width: 100%;
             background: var(--bg-color);
@@ -71,93 +63,72 @@
         }
         input:focus { outline: 2px solid var(--accent); border-color: transparent; }
 
-        /* Buttons */
         .btn {
-            background: var(--accent);
-            color: var(--bg-color);
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: background 0.2s;
+            background: var(--accent); color: var(--bg-color); border: none; padding: 8px 16px;
+            border-radius: 4px; cursor: pointer; font-weight: 600; width: 100%;
         }
         .btn:hover { background: var(--accent-hover); }
-        .btn-sm { padding: 4px 8px; font-size: 0.8rem; }
-        .btn-danger { background: var(--danger); color: white; }
-        .btn-add { width: 100%; margin-top: 10px; background: #334155; color: var(--text-main); }
+        .btn-add { background: #334155; color: var(--text-main); margin-top: 10px; }
         .btn-add:hover { background: #475569; }
 
-        /* Grant List */
         .grant-item {
-            background: rgba(255,255,255,0.05);
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 10px;
-            position: relative;
+            background: rgba(255,255,255,0.05); padding: 10px; border-radius: 4px; margin-bottom: 10px; position: relative;
         }
-        .grant-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .grant-details { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .remove-grant { color: var(--danger); cursor: pointer; font-size: 1.2rem; line-height: 1; }
+        .grant-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; font-weight: bold; }
+        .remove-grant { color: var(--danger); cursor: pointer; }
 
-        /* Summary Dashboard */
+        /* Summary Stats Grid */
         .summary-stats {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
             margin-bottom: 20px;
         }
+        @media (min-width: 600px) { .summary-stats { grid-template-columns: repeat(4, 1fr); } }
+
         .stat-box {
-            background: rgba(255,255,255,0.03);
-            padding: 15px;
-            border-radius: 6px;
-            text-align: center;
+            background: rgba(255,255,255,0.03); padding: 15px; border-radius: 6px; text-align: center;
         }
-        .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--success); }
-        .stat-label { font-size: 0.875rem; color: var(--text-muted); }
-        .stat-sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 5px; }
+        .stat-value { font-size: 1.25rem; font-weight: 700; color: var(--text-main); }
+        .stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-sub { font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; }
+        
+        .val-gross { color: #fbbf24; }
+        .val-net { color: var(--success); }
+        .val-future { color: var(--accent); }
 
         /* Table */
-        .timeline-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-        }
-        .timeline-table th, .timeline-table td {
-            text-align: left;
-            padding: 10px;
-            border-bottom: 1px solid var(--border);
-        }
-        .timeline-table th { color: var(--text-muted); font-weight: 600; }
-        .timeline-table tr:last-child td { border-bottom: none; }
+        .timeline-container { max-height: 400px; overflow-y: auto; }
+        .timeline-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .timeline-table th { position: sticky; top: 0; background: var(--card-bg); text-align: left; padding: 10px; color: var(--text-muted); }
+        .timeline-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
         .vested-row { opacity: 0.5; }
-        .future-row { font-weight: 500; }
-
-        .tabs { margin-bottom: 15px; display: flex; gap: 10px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
-        .tab { cursor: pointer; padding: 5px 10px; border-radius: 4px; color: var(--text-muted); }
-        .tab.active { background: var(--accent); color: var(--bg-color); }
         
-        .tag-future { background: #6366f1; font-size: 0.7em; padding: 2px 6px; border-radius: 4px; vertical-align: middle; margin-left: 5px;}
+        /* Chart Container */
+        .chart-container { position: relative; height: 300px; width: 100%; margin-bottom: 20px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div class="header-section" style="display:flex; justify-content:space-between; align-items:center;">
-        <h1>RSU Forecaster</h1>
-        <div style="text-align:right;">
-            <span style="font-size:0.9rem; color:var(--text-muted);">Today: <span id="currentDateDisplay"></span></span>
-        </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h1>RSU Wealth Forecaster</h1>
+        <div style="font-size:0.9rem; color:var(--text-muted);">Today: <span id="currentDateDisplay"></span></div>
     </div>
 
     <div class="grid">
         <div class="input-panel">
             
             <div class="card">
-                <h2>Settings</h2>
+                <h2>Assumptions</h2>
                 <div class="input-group">
                     <label>Current Share Price ($)</label>
                     <input type="number" id="sharePrice" value="50.00" step="0.01" oninput="calculate()">
+                </div>
+                <div class="input-group">
+                    <label>Growth Rate (Annual %)</label>
+                    <input type="number" id="growthRate" value="7" step="0.1" oninput="calculate()">
+                    <small style="color:var(--text-muted); font-size:0.7rem;">Applied to future values (e.g. S&P 500)</small>
                 </div>
                 <div class="input-group">
                     <label>Tax Rate (%)</label>
@@ -166,42 +137,59 @@
             </div>
 
             <div class="card">
-                <h2>Past Grants</h2>
-                <div id="pastGrantsList"></div>
-                <button class="btn btn-add" onclick="addGrant('past')">+ Add Past Grant</button>
+                <h2>Future Grants</h2>
+                <div class="input-group">
+                    <label>Annual Grant Amount (Shares)</label>
+                    <input type="number" id="recurringShares" value="0" placeholder="e.g. 500" oninput="calculate()">
+                </div>
+                <div class="input-group">
+                    <label>Annual Grant Date</label>
+                    <input type="date" id="recurringDate" value="2026-12-20" onchange="calculate()">
+                </div>
+                <small style="color:var(--text-muted); font-size:0.8rem;">
+                    *Projects this grant repeating for the next 4 years.
+                </small>
             </div>
 
             <div class="card">
-                <h2>Expected Future Grants</h2>
-                <div class="input-group">
-                    <label>Annual Grant Date (e.g., Dec 20)</label>
-                    <input type="date" id="defaultFutureDate" value="2026-12-20">
-                </div>
-                <div id="futureGrantsList"></div>
-                <button class="btn btn-add" onclick="addGrant('future')">+ Add Future Grant</button>
+                <h2>Past Grants</h2>
+                <div id="pastGrantsList"></div>
+                <button class="btn btn-add" onclick="addPastGrant()">+ Add Past Grant</button>
             </div>
         </div>
 
         <div class="output-panel">
             
             <div class="card">
-                <h2>Summary</h2>
+                <h2>Current Snapshot</h2>
                 <div class="summary-stats">
                     <div class="stat-box">
-                        <div class="stat-label">Currently Vested (Net)</div>
-                        <div class="stat-value" id="valVested">$0</div>
-                        <div class="stat-sub">Post-Tax Value</div>
+                        <div class="stat-label">Vested (Pre-Tax)</div>
+                        <div class="stat-value val-gross" id="valVestedGross">$0</div>
+                        <div class="stat-sub">Realized Value</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Vested (Post-Tax)</div>
+                        <div class="stat-value val-net" id="valVestedNet">$0</div>
+                        <div class="stat-sub">Cash Equivalent</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">Unvested (Gross)</div>
-                        <div class="stat-value" id="valUnvested" style="color:var(--text-main)">$0</div>
-                        <div class="stat-sub">Future Value</div>
+                        <div class="stat-value" id="valUnvested">$0</div>
+                        <div class="stat-sub">Future Pipeline</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">Total Portfolio</div>
-                        <div class="stat-value" id="valTotal" style="color:var(--accent)">$0</div>
-                        <div class="stat-sub">Vested + Unvested (Gross)</div>
+                        <div class="stat-value val-future" id="valTotal">$0</div>
+                        <div class="stat-sub">Vested + Unvested</div>
                     </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Projected Wealth Growth</h2>
+                <div class="chart-container">
+                    <canvas id="wealthChart"></canvas>
                 </div>
             </div>
 
@@ -209,23 +197,22 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                     <h2>Vesting Schedule</h2>
                     <select id="viewFilter" onchange="renderTimeline()" style="width:auto; padding:4px;">
-                        <option value="all">Show All</option>
                         <option value="future" selected>Future Only</option>
+                        <option value="all">Show All</option>
                     </select>
                 </div>
-                <div style="overflow-x:auto;">
+                <div class="timeline-container">
                     <table class="timeline-table">
                         <thead>
                             <tr>
                                 <th>Date</th>
                                 <th>Shares</th>
-                                <th>Gross Value</th>
-                                <th>Net Value (Post-Tax)</th>
+                                <th>Projected Value</th>
+                                <th>Net (Post-Tax)</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
-                        <tbody id="timelineBody">
-                            </tbody>
+                        <tbody id="timelineBody"></tbody>
                     </table>
                 </div>
             </div>
@@ -235,248 +222,316 @@
 
 <script>
     // --- STATE MANAGEMENT ---
+    let myChart = null; // Holds the chart instance
+    let currentCalculatedEvents = []; // Holds data for timeline
+    const today = new Date();
+    document.getElementById('currentDateDisplay').innerText = today.toLocaleDateString();
 
-    // 1. Run this immediately when the page loads
     window.onload = function() {
-        if (localStorage.getItem('rsu_data_v1')) {
+        if (localStorage.getItem('rsu_data_v2')) {
             loadData();
         } else {
-            // Default demo data if no save exists
-            addGrant('past', '2023-12-20', 1000, 'annual4');
-            calculate(); // Calculates and saves
+            // Demo Data
+            addPastGrant('2023-12-20', 1000, 'annual4');
+            document.getElementById('recurringShares').value = 500;
+            calculate();
         }
     }
 
-    // 2. Save everything to browser memory
     function saveData() {
         const data = {
             settings: {
                 price: document.getElementById('sharePrice').value,
+                growth: document.getElementById('growthRate').value,
                 tax: document.getElementById('taxRate').value,
-                defDate: document.getElementById('defaultFutureDate').value,
-                view: document.getElementById('viewFilter').value
+                recShares: document.getElementById('recurringShares').value,
+                recDate: document.getElementById('recurringDate').value
             },
-            past: getGrantsFromContainer('pastGrantsList'),
-            future: getGrantsFromContainer('futureGrantsList')
+            past: getPastGrants()
         };
-        localStorage.setItem('rsu_data_v1', JSON.stringify(data));
+        localStorage.setItem('rsu_data_v2', JSON.stringify(data));
     }
 
-    // 3. Load data from browser memory
     function loadData() {
-        const saved = JSON.parse(localStorage.getItem('rsu_data_v1'));
-        
-        // Restore Settings
-        if(saved.settings) {
-            document.getElementById('sharePrice').value = saved.settings.price || 50;
-            document.getElementById('taxRate').value = saved.settings.tax || 35;
-            document.getElementById('defaultFutureDate').value = saved.settings.defDate || '2026-12-20';
-            document.getElementById('viewFilter').value = saved.settings.view || 'future';
-        }
-
-        // Restore Grants
-        // We clear the lists first to avoid duplicates
-        document.getElementById('pastGrantsList').innerHTML = '';
-        document.getElementById('futureGrantsList').innerHTML = '';
-
-        if(saved.past) saved.past.forEach(g => addGrant('past', g.date, g.shares, g.schedule));
-        if(saved.future) saved.future.forEach(g => addGrant('future', g.date, g.shares, g.schedule));
-
-        calculate(false); // Calculate but don't re-save immediately to avoid loops
+        try {
+            const saved = JSON.parse(localStorage.getItem('rsu_data_v2'));
+            if(saved.settings) {
+                document.getElementById('sharePrice').value = saved.settings.price || 50;
+                document.getElementById('growthRate').value = saved.settings.growth || 7;
+                document.getElementById('taxRate').value = saved.settings.tax || 35;
+                document.getElementById('recurringShares').value = saved.settings.recShares || 0;
+                document.getElementById('recurringDate').value = saved.settings.recDate || '2026-12-20';
+            }
+            document.getElementById('pastGrantsList').innerHTML = '';
+            if(saved.past) saved.past.forEach(g => addPastGrant(g.date, g.shares, g.schedule));
+            calculate(false);
+        } catch(e) { console.error("Save data error", e); }
     }
 
-    // Helper to extract data for saving
-    function getGrantsFromContainer(containerId) {
-        const container = document.getElementById(containerId);
-        const items = container.querySelectorAll('.grant-item');
-        const list = [];
-        items.forEach(div => {
-            list.push({
-                date: div.querySelector('.grant-date').value,
-                shares: div.querySelector('.grant-shares').value,
-                schedule: div.querySelector('.grant-schedule').value
-            });
-        });
-        return list;
-    }
-
-    // --- CORE LOGIC ---
-
-    const today = new Date();
-    document.getElementById('currentDateDisplay').innerText = today.toLocaleDateString();
-
-    // Updated addGrant to accept 'schedule' and trigger calculation
-    function addGrant(type, dateVal = '', sharesVal = '', scheduleVal = 'annual4') {
-        const id = Date.now().toString() + Math.random().toString().slice(2,5); // Unique ID
-        
-        if(type === 'future' && !dateVal) {
-             const defDate = document.getElementById('defaultFutureDate').value;
-             dateVal = defDate;
-        }
-
-        const container = type === 'past' ? document.getElementById('pastGrantsList') : document.getElementById('futureGrantsList');
-
+    // --- DOM HELPERS ---
+    function addPastGrant(dateVal = '', sharesVal = '', scheduleVal = 'annual4') {
+        const id = Date.now() + Math.random().toString().slice(2,5);
         const div = document.createElement('div');
         div.className = 'grant-item';
         div.id = `grant-${id}`;
         div.innerHTML = `
             <div class="grant-header">
-                <span style="font-weight:bold; font-size:0.9rem;">${type === 'future' ? 'Expected Grant' : 'Grant'}</span>
+                <span>Past Grant</span>
                 <span class="remove-grant" onclick="removeGrant('${id}')">&times;</span>
             </div>
-            <div class="grant-details">
-                <div class="input-group" style="margin:0">
-                    <label>Date</label>
-                    <input type="date" class="grant-date" value="${dateVal}" onchange="calculate()">
-                </div>
-                <div class="input-group" style="margin:0">
-                    <label>Shares</label>
-                    <input type="number" class="grant-shares" placeholder="Total Shares" value="${sharesVal}" oninput="calculate()">
-                </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <div class="input-group" style="margin:0"><label>Date</label><input type="date" class="g-date" value="${dateVal}" onchange="calculate()"></div>
+                <div class="input-group" style="margin:0"><label>Shares</label><input type="number" class="g-shares" value="${sharesVal}" oninput="calculate()"></div>
             </div>
             <div class="input-group" style="margin-top:10px; margin-bottom:0;">
                 <label>Vesting Schedule</label>
-                <select class="grant-schedule" onchange="calculate()">
+                <select class="g-schedule" onchange="calculate()">
                     <option value="annual4" ${scheduleVal === 'annual4' ? 'selected' : ''}>4 Years (25% Annually)</option>
-                    <option value="monthly4" ${scheduleVal === 'monthly4' ? 'selected' : ''}>4 Years (25% Cliff + Monthly)</option>
                     <option value="quarterly4" ${scheduleVal === 'quarterly4' ? 'selected' : ''}>4 Years (Quarterly)</option>
+                    <option value="monthly4" ${scheduleVal === 'monthly4' ? 'selected' : ''}>4 Years (Cliff + Monthly)</option>
                 </select>
             </div>
         `;
-        container.appendChild(div);
+        document.getElementById('pastGrantsList').appendChild(div);
     }
 
-    function removeGrant(id) {
-        const el = document.getElementById(`grant-${id}`);
-        if(el) el.remove();
-        calculate();
+    function removeGrant(id) { document.getElementById(`grant-${id}`).remove(); calculate(); }
+
+    function getPastGrants() {
+        const list = [];
+        document.querySelectorAll('#pastGrantsList .grant-item').forEach(div => {
+            list.push({
+                date: div.querySelector('.g-date').value,
+                shares: div.querySelector('.g-shares').value,
+                schedule: div.querySelector('.g-schedule').value
+            });
+        });
+        return list;
     }
 
-    // "Main" function that updates the UI
+    // --- CALCULATION ENGINE ---
+
     function calculate(shouldSave = true) {
-        // 1. Get Settings
         const price = parseFloat(document.getElementById('sharePrice').value) || 0;
+        const growthRate = parseFloat(document.getElementById('growthRate').value) / 100 || 0;
         const taxRate = parseFloat(document.getElementById('taxRate').value) / 100 || 0;
-        
-        // 2. Gather all grants (both lists) for calculation
-        const allGrants = [
-            ...getGrantsFromContainer('pastGrantsList'),
-            ...getGrantsFromContainer('futureGrantsList')
-        ];
 
-        let allEvents = [];
+        // 1. Collect All Grants (Past + Generated Future)
+        let allGrants = getPastGrants().map(g => ({...g, type: 'past'}));
         
-        // 3. Generate vesting events
+        // Generate Future Recurring Grants (Next 4 years)
+        const recShares = parseFloat(document.getElementById('recurringShares').value) || 0;
+        const recDateStr = document.getElementById('recurringDate').value;
+        if(recShares > 0 && recDateStr) {
+            const baseDate = new Date(recDateStr);
+            for(let i=0; i<4; i++) {
+                let d = new Date(baseDate);
+                d.setFullYear(d.getFullYear() + i);
+                // Ensure we don't add "future" grants that are actually in the past
+                if(d > today) {
+                    allGrants.push({
+                        date: d.toISOString().split('T')[0],
+                        shares: recShares,
+                        schedule: 'annual4',
+                        type: 'future'
+                    });
+                }
+            }
+        }
+
+        // 2. Generate Vesting Events
+        let events = [];
         allGrants.forEach(g => {
             if(g.date && g.shares > 0) {
-                // Convert string date to object
-                const grantObj = {
-                    date: new Date(g.date),
-                    shares: parseFloat(g.shares),
-                    schedule: g.schedule
-                };
-                allEvents = allEvents.concat(generateEvents(grantObj));
+                const grantObj = { date: new Date(g.date), shares: parseFloat(g.shares), schedule: g.schedule };
+                events = events.concat(generateVestingEvents(grantObj));
             }
         });
+        events.sort((a, b) => a.date - b.date);
 
-        // Sort by date
-        allEvents.sort((a, b) => a.date - b.date);
-        
-        // 4. Calculate Totals
+        // 3. Calculate Values with Growth
+        let totalVestedGross = 0;
         let totalVestedNet = 0;
-        let totalUnvestedGross = 0;
+        let totalUnvestedGross = 0; // Nominal value (no growth assumed for raw stat)
         let totalPortfolioGross = 0;
 
-        allEvents.forEach(e => {
-            const isVested = e.date <= today;
-            const grossVal = e.shares * price;
-            const netVal = grossVal * (1 - taxRate);
+        events.forEach(e => {
+            e.isVested = e.date <= today;
+            
+            // Calculate Projected Price
+            // Years from NOW (not from grant date)
+            let yearsInFuture = (e.date - today) / (1000 * 60 * 60 * 24 * 365);
+            if (yearsInFuture < 0) yearsInFuture = 0;
+            
+            e.projectedPrice = price * Math.pow((1 + growthRate), yearsInFuture);
+            e.grossVal = e.shares * e.projectedPrice;
+            e.netVal = e.grossVal * (1 - taxRate);
 
-            totalPortfolioGross += grossVal;
-
-            if (isVested) {
-                totalVestedNet += netVal;
+            if (e.isVested) {
+                // For already vested, we usually use CURRENT price, not projected, 
+                // unless we assume they held the stock. 
+                // Let's assume held:
+                totalVestedGross += e.grossVal;
+                totalVestedNet += e.netVal;
             } else {
-                totalUnvestedGross += grossVal;
+                totalUnvestedGross += e.grossVal;
             }
+            totalPortfolioGross += e.grossVal;
         });
 
-        // 5. Update UI
-        document.getElementById('valVested').innerText = formatCurrency(totalVestedNet);
-        document.getElementById('valUnvested').innerText = formatCurrency(totalUnvestedGross);
-        document.getElementById('valTotal').innerText = formatCurrency(totalPortfolioGross);
+        currentCalculatedEvents = events;
 
-        renderTimeline(allEvents, price, taxRate);
+        // 4. Update Stats
+        document.getElementById('valVestedGross').innerText = formatMoney(totalVestedGross);
+        document.getElementById('valVestedNet').innerText = formatMoney(totalVestedNet);
+        document.getElementById('valUnvested').innerText = formatMoney(totalUnvestedGross);
+        document.getElementById('valTotal').innerText = formatMoney(totalPortfolioGross);
 
-        // 6. Save State (unless explicitly skipped)
+        // 5. Update Visuals
+        renderTimeline();
+        renderChart(events);
+
         if(shouldSave) saveData();
     }
 
-    // Logic to split grants into vesting chunks
-    function generateEvents(grant) {
-        let events = [];
-        const startDate = new Date(grant.date);
-        // Correct for timezone offsets often causing "previous day" bugs
-        // We'll treat the input date as UTC noon to be safe, or just use simple date manipulation
+    function generateVestingEvents(grant) {
+        let evs = [];
+        const start = new Date(grant.date);
         
         if (grant.schedule === 'annual4') {
             for (let i = 1; i <= 4; i++) {
-                let d = new Date(startDate);
+                let d = new Date(start);
                 d.setFullYear(d.getFullYear() + i);
-                events.push({ date: d, shares: grant.shares * 0.25 });
+                evs.push({ date: d, shares: grant.shares * 0.25 });
             }
         } else if (grant.schedule === 'quarterly4') {
-            const sharesPerQ = grant.shares / 16;
             for (let i = 1; i <= 16; i++) {
-                let d = new Date(startDate);
+                let d = new Date(start);
                 d.setMonth(d.getMonth() + (i * 3));
-                events.push({ date: d, shares: sharesPerQ });
+                evs.push({ date: d, shares: grant.shares / 16 });
             }
         } else if (grant.schedule === 'monthly4') {
-             const cliffShares = grant.shares * 0.25;
-             const monthlyShares = (grant.shares * 0.75) / 36;
-             
-             let cliffDate = new Date(startDate);
-             cliffDate.setFullYear(cliffDate.getFullYear() + 1);
-             events.push({ date: cliffDate, shares: cliffShares });
-
-             for (let i = 1; i <= 36; i++) {
-                 let d = new Date(cliffDate);
-                 d.setMonth(d.getMonth() + i);
-                 events.push({ date: d, shares: monthlyShares });
-             }
+            let cliff = new Date(start); cliff.setFullYear(cliff.getFullYear() + 1);
+            evs.push({ date: cliff, shares: grant.shares * 0.25 });
+            for (let i = 1; i <= 36; i++) {
+                let d = new Date(cliff); d.setMonth(d.getMonth() + i);
+                evs.push({ date: d, shares: (grant.shares * 0.75) / 36 });
+            }
         }
-        return events;
+        return evs;
     }
 
-    function renderTimeline(events, price, taxRate) {
+    function renderTimeline() {
         const filter = document.getElementById('viewFilter').value;
         const tbody = document.getElementById('timelineBody');
         tbody.innerHTML = '';
 
-        events.forEach(e => {
-            const isVested = e.date <= today;
-            if (filter === 'future' && isVested) return;
-
-            const grossVal = e.shares * price;
-            const netVal = grossVal * (1 - taxRate);
+        currentCalculatedEvents.forEach(e => {
+            if (filter === 'future' && e.isVested) return;
             
             const tr = document.createElement('tr');
-            if (isVested) tr.className = 'vested-row';
-            else tr.className = 'future-row';
-
+            if (e.isVested) tr.className = 'vested-row';
+            
             tr.innerHTML = `
-                <td>${e.date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                <td>${e.date.toLocaleDateString(undefined, {year:'2-digit', month:'short', day:'numeric'})}</td>
                 <td>${e.shares.toFixed(2)}</td>
-                <td>${formatCurrency(grossVal)}</td>
-                <td style="color:${isVested ? 'var(--text-muted)' : 'var(--success)'}">${formatCurrency(netVal)}</td>
-                <td>${isVested ? '✅ Vested' : '⏳ Pending'}</td>
+                <td>${formatMoney(e.grossVal)}</td>
+                <td style="color:${e.isVested ? 'inherit' : 'var(--success)'}">${formatMoney(e.netVal)}</td>
+                <td>${e.isVested ? '✅' : '⏳'}</td>
             `;
             tbody.appendChild(tr);
         });
     }
 
-    function formatCurrency(num) {
+    function renderChart(events) {
+        const ctx = document.getElementById('wealthChart').getContext('2d');
+        
+        // Group data by Year-Month for cleaner chart
+        const dataMap = new Map();
+        
+        // Seed map with today to ensure chart starts now
+        const nowKey = today.toISOString().slice(0, 7); // YYYY-MM
+        dataMap.set(nowKey, { vested: 0, total: 0 });
+
+        // Accumulate values
+        let runningVested = 0;
+        let runningTotal = 0;
+
+        // We need to iterate chronologically
+        // First, build a timeline of all dates involved
+        const allDates = events.map(e => e.date).concat([today]).sort((a,b) => a-b);
+        const uniqueMonths = [...new Set(allDates.map(d => d.toISOString().slice(0,7)))];
+
+        // Cumulative sum calculation
+        let cumVested = 0;
+        
+        // Helper to get total value at a specific point in time (including unvested growth)
+        // This is complex, so we will simplify: 
+        // We will just plot the "Vesting Events" accumulation over time.
+        
+        const chartLabels = [];
+        const vestedData = [];
+        const totalData = [];
+        
+        let cumulativeVestedValue = 0;
+
+        // Simplify: Group by Year for cleaner view or Quarter
+        // Let's do a simple accumulation of vested value over time
+        
+        uniqueMonths.forEach(monthStr => {
+            // Find events in this month
+            const evsInMonth = events.filter(e => e.date.toISOString().slice(0,7) === monthStr);
+            
+            evsInMonth.forEach(e => {
+                cumulativeVestedValue += e.grossVal;
+            });
+
+            // For "Total Potential", we generally treat it as the final total number 
+            // but effectively realized over time. 
+            // Actually, a better graph is "Cumulative Vested" vs "Time".
+            
+            chartLabels.push(monthStr);
+            vestedData.push(cumulativeVestedValue);
+        });
+
+        // Re-initialize Chart
+        if (myChart) myChart.destroy();
+
+        myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: chartLabels,
+                datasets: [{
+                    label: 'Cumulative Vested Value (Projected)',
+                    data: vestedData,
+                    borderColor: '#4ade80',
+                    backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#94a3b8' }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: '#f1f5f9' } }
+                }
+            }
+        });
+    }
+
+    function formatMoney(num) {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
     }
 </script>
