@@ -16,7 +16,6 @@
             --success: #4ade80;
             --danger: #f87171;
             --border: #334155;
-            --table-header: #334155;
         }
 
         body {
@@ -78,7 +77,6 @@
         .grant-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; font-weight: bold; }
         .remove-grant { color: var(--danger); cursor: pointer; }
 
-        /* Summary Stats Grid */
         .summary-stats {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -107,8 +105,15 @@
         .year-summary-table th { background: #2a384e; }
         .year-summary-table tr:nth-child(even) { background: rgba(255,255,255,0.02); }
 
-        /* Chart Container */
         .chart-container { position: relative; height: 300px; width: 100%; margin-bottom: 20px; }
+        
+        .price-display {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--success);
+            margin-top: 5px;
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -125,13 +130,13 @@
             <div class="card">
                 <h2>Assumptions</h2>
                 <div class="input-group">
-                    <label>Current Share Price ($)</label>
-                    <input type="number" id="sharePrice" value="66.67" step="0.01" oninput="calculate()">
-                    <small style="color:var(--text-muted); font-size:0.7rem;">Default based on $20B Cap / 300M Shares</small>
+                    <label>Market Cap ($ Billions)</label>
+                    <input type="number" id="marketCap" value="20" step="0.1" oninput="calculate()">
+                    <span id="calculatedPrice" class="price-display">$66.67 / share</span>
                 </div>
                 <div class="input-group">
                     <label>Growth Rate (Annual %)</label>
-                    <input type="number" id="growthRate" value="7" step="0.1" oninput="calculate()">
+                    <input type="number" id="growthRate" value="15" step="0.1" oninput="calculate()">
                 </div>
                 <div class="input-group">
                     <label>Tax Rate (%)</label>
@@ -150,7 +155,7 @@
                     <input type="date" id="recurringDate" value="2026-12-20" onchange="calculate()">
                 </div>
                 <small style="color:var(--text-muted); font-size:0.8rem;">
-                    Projects this grant repeating for the next 5 years (4-year vesting).
+                    *Projects this grant repeating for 5 years.
                 </small>
             </div>
 
@@ -164,7 +169,7 @@
         <div class="output-panel">
             
             <div class="card">
-                <h2>Current Snapshot</h2>
+                <h2>Current Snapshot (As of Today)</h2>
                 <div class="summary-stats">
                     <div class="stat-box">
                         <div class="stat-label">Vested (Pre-Tax)</div>
@@ -177,10 +182,12 @@
                     <div class="stat-box">
                         <div class="stat-label">Unvested (Gross)</div>
                         <div class="stat-value" id="valUnvested">$0</div>
+                        <div class="stat-sub">Current Grants Only</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">Total Portfolio</div>
                         <div class="stat-value val-future" id="valTotal">$0</div>
+                        <div class="stat-sub">Current Grants Only</div>
                     </div>
                 </div>
             </div>
@@ -245,11 +252,11 @@
     document.getElementById('currentDateDisplay').innerText = today.toLocaleDateString();
 
     window.onload = function() {
-        if (localStorage.getItem('rsu_data_v3')) {
+        if (localStorage.getItem('rsu_data_v4')) {
             loadData();
         } else {
             // Default Demo Data
-            addPastGrant('2023-12-20', 1000); // Default 1000 shares
+            addPastGrant('2023-12-20', 1000); 
             calculate();
         }
     }
@@ -257,7 +264,7 @@
     function saveData() {
         const data = {
             settings: {
-                price: document.getElementById('sharePrice').value,
+                mcap: document.getElementById('marketCap').value,
                 growth: document.getElementById('growthRate').value,
                 tax: document.getElementById('taxRate').value,
                 recShares: document.getElementById('recurringShares').value,
@@ -265,15 +272,15 @@
             },
             past: getPastGrants()
         };
-        localStorage.setItem('rsu_data_v3', JSON.stringify(data));
+        localStorage.setItem('rsu_data_v4', JSON.stringify(data));
     }
 
     function loadData() {
         try {
-            const saved = JSON.parse(localStorage.getItem('rsu_data_v3'));
+            const saved = JSON.parse(localStorage.getItem('rsu_data_v4'));
             if(saved.settings) {
-                document.getElementById('sharePrice').value = saved.settings.price || 66.67;
-                document.getElementById('growthRate').value = saved.settings.growth || 7;
+                document.getElementById('marketCap').value = saved.settings.mcap || 20;
+                document.getElementById('growthRate').value = saved.settings.growth || 15;
                 document.getElementById('taxRate').value = saved.settings.tax || 35;
                 document.getElementById('recurringShares').value = saved.settings.recShares || 1000;
                 document.getElementById('recurringDate').value = saved.settings.recDate || '2026-12-20';
@@ -292,7 +299,7 @@
         div.id = `grant-${id}`;
         div.innerHTML = `
             <div class="grant-header">
-                <span>Past Grant (4y Vesting)</span>
+                <span>Past Grant</span>
                 <span class="remove-grant" onclick="removeGrant('${id}')">&times;</span>
             </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
@@ -319,14 +326,20 @@
     // --- CALCULATION ENGINE ---
 
     function calculate(shouldSave = true) {
-        const price = parseFloat(document.getElementById('sharePrice').value) || 0;
+        // 1. Calculate Price from Market Cap
+        // Price = (Cap * 1B) / 300M shares -> Cap * 10 / 3
+        const mcap = parseFloat(document.getElementById('marketCap').value) || 0;
+        const price = (mcap * 10) / 3;
+        
+        // Update display
+        document.getElementById('calculatedPrice').innerText = formatMoney(price).replace('$0.00', '$0') + " / share";
+
         const growthRate = parseFloat(document.getElementById('growthRate').value) / 100 || 0;
         const taxRate = parseFloat(document.getElementById('taxRate').value) / 100 || 0;
 
-        // 1. Collect Grants
-        let allGrants = getPastGrants().map(g => ({...g, type: 'past'}));
+        // 2. Collect Grants
+        let allGrants = getPastGrants().map(g => ({...g, origin: 'past'}));
         
-        // Generate Future Recurring Grants (Next 5 years)
         const recShares = parseFloat(document.getElementById('recurringShares').value) || 0;
         const recDateStr = document.getElementById('recurringDate').value;
         if(recShares > 0 && recDateStr) {
@@ -338,36 +351,38 @@
                     allGrants.push({
                         date: d.toISOString().split('T')[0],
                         shares: recShares,
-                        type: 'future'
+                        origin: 'future'
                     });
                 }
             }
         }
 
-        // 2. Generate Events (Hardcoded 4 Years Annual)
+        // 3. Generate Events (4 Years Annual)
         let events = [];
         allGrants.forEach(g => {
             if(g.date && g.shares > 0) {
                 const start = new Date(g.date);
                 const shareCount = parseFloat(g.shares);
                 
-                // 4 Years, 25% each
                 for (let i = 1; i <= 4; i++) {
                     let vestDate = new Date(start);
                     vestDate.setFullYear(vestDate.getFullYear() + i);
-                    events.push({ date: vestDate, shares: shareCount * 0.25 });
+                    events.push({ 
+                        date: vestDate, 
+                        shares: shareCount * 0.25, 
+                        origin: g.origin 
+                    });
                 }
             }
         });
         events.sort((a, b) => a.date - b.date);
 
-        // 3. Process Values
-        let totalVestedGross = 0;
-        let totalVestedNet = 0;
-        let totalUnvestedGross = 0; 
-        let totalPortfolioGross = 0;
+        // 4. Process Values
+        let snapshotVestedGross = 0;
+        let snapshotVestedNet = 0;
+        let snapshotUnvestedGross = 0; 
+        let snapshotTotalGross = 0;
 
-        // Limit loop to roughly 10 years out max for performance, though graph is limited to 5
         events.forEach(e => {
             e.isVested = e.date <= today;
             
@@ -379,25 +394,34 @@
             e.grossVal = e.shares * e.projectedPrice;
             e.netVal = e.grossVal * (1 - taxRate);
 
+            // --- SNAPSHOT LOGIC ---
+            // Only count "Past" grants for the "Current Snapshot" stats
+            // "Vested" is naturally only from past grants.
+            // "Unvested" should NOT include the speculative future grants.
+            
             if (e.isVested) {
-                // Assume held stock for totals
-                totalVestedGross += e.grossVal;
-                totalVestedNet += e.netVal;
+                // Vested is always real
+                snapshotVestedGross += e.grossVal;
+                snapshotVestedNet += e.netVal;
+                snapshotTotalGross += e.grossVal;
             } else {
-                totalUnvestedGross += e.grossVal;
+                // Only add to snapshot if it's from a grant we already have
+                if (e.origin === 'past') {
+                    snapshotUnvestedGross += e.grossVal;
+                    snapshotTotalGross += e.grossVal;
+                }
             }
-            totalPortfolioGross += e.grossVal;
         });
 
         currentCalculatedEvents = events;
 
-        // 4. Update Header Stats
-        document.getElementById('valVestedGross').innerText = formatMoney(totalVestedGross);
-        document.getElementById('valVestedNet').innerText = formatMoney(totalVestedNet);
-        document.getElementById('valUnvested').innerText = formatMoney(totalUnvestedGross);
-        document.getElementById('valTotal').innerText = formatMoney(totalPortfolioGross);
+        // 5. Update Header Stats
+        document.getElementById('valVestedGross').innerText = formatMoney(snapshotVestedGross);
+        document.getElementById('valVestedNet').innerText = formatMoney(snapshotVestedNet);
+        document.getElementById('valUnvested').innerText = formatMoney(snapshotUnvestedGross);
+        document.getElementById('valTotal').innerText = formatMoney(snapshotTotalGross);
 
-        // 5. Render Visuals
+        // 6. Render Visuals
         renderYearSummary(events, price, growthRate, taxRate);
         renderTimeline();
         renderChart(events);
@@ -409,23 +433,20 @@
         const tbody = document.getElementById('yearSummaryBody');
         tbody.innerHTML = '';
 
-        // Determine range: Current Year to Current Year + 5
         const currentYear = today.getFullYear();
         const endYear = currentYear + 5;
         
         for (let y = currentYear; y <= endYear; y++) {
-            // Snapshot date: Dec 31st of that year
             const yearEnd = new Date(`${y}-12-31`);
             
-            // Price at that specific year end
             const yearsFromNow = (yearEnd - today) / (1000 * 60 * 60 * 24 * 365);
             const projectedPrice = currentPrice * Math.pow((1 + growthRate), Math.max(0, yearsFromNow));
 
             let accVestedShares = 0;
             let unvestedShares = 0;
 
-            // Filter events relative to this specific year-end
             events.forEach(e => {
+                // For projections, we include EVERYTHING (Past + Future)
                 if (e.date <= yearEnd) {
                     accVestedShares += e.shares;
                 } else {
@@ -461,8 +482,15 @@
             const tr = document.createElement('tr');
             if (e.isVested) tr.className = 'vested-row';
             
+            // Full Year Format
+            const dateStr = e.date.toLocaleDateString(undefined, {
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric'
+            });
+
             tr.innerHTML = `
-                <td>${e.date.toLocaleDateString(undefined, {year:'2-digit', month:'short', day:'numeric'})}</td>
+                <td>${dateStr}</td>
                 <td>${e.shares.toFixed(0)}</td>
                 <td>${formatMoney(e.grossVal)}</td>
                 <td style="color:${e.isVested ? 'inherit' : 'var(--success)'}">${formatMoney(e.netVal)}</td>
@@ -474,68 +502,52 @@
 
     function renderChart(events) {
         const ctx = document.getElementById('wealthChart').getContext('2d');
-        const labels = [];
-        const dataVested = [];
         
-        // Limit chart to 5 years from now
+        // 5 Years Out
         const limitDate = new Date(today);
         limitDate.setFullYear(today.getFullYear() + 5);
 
-        // Group by Month
-        const dateMap = new Map();
+        // We want to sample the value at the end of each YEAR
+        const labels = [];
+        const dataVested = [];
         
-        // Create monthly buckets for next 60 months
-        for(let i=0; i<=60; i++) {
-            let d = new Date(today);
-            d.setMonth(d.getMonth() + i);
-            const key = d.toISOString().slice(0, 7); // YYYY-MM
-            dateMap.set(key, 0);
-            if(i % 3 === 0) labels.push(key); // Sparse labels
-        }
+        // Initialize with Today
+        let runningVested = 0;
+        events.filter(e => e.date <= today).forEach(e => runningVested += e.grossVal);
+        
+        labels.push(today.getFullYear());
+        dataVested.push(runningVested);
 
-        // Fill buckets
-        let cumulativeVested = 0;
-        
-        // Initialize cumulative with ALREADY vested
-        events.filter(e => e.date <= today).forEach(e => cumulativeVested += e.grossVal);
-
-        // Sort events
-        const futureEvents = events.filter(e => e.date > today && e.date <= limitDate);
-        
-        // We need to step through month by month to build the line
-        const chartData = [];
-        
-        let currentIterDate = new Date(today);
-        
-        for(let i=0; i<=60; i++) {
-            const yearMonth = currentIterDate.toISOString().slice(0, 7);
+        // Loop next 5 years
+        for (let i = 1; i <= 5; i++) {
+            const y = today.getFullYear() + i;
+            labels.push(y);
             
-            // Add any events happening in this specific month
-            const monthsEvents = futureEvents.filter(e => e.date.toISOString().slice(0,7) === yearMonth);
-            monthsEvents.forEach(e => cumulativeVested += e.grossVal);
+            // Calculate Total Vested at end of Year Y
+            const cutOff = new Date(`${y}-12-31`);
             
-            chartData.push(cumulativeVested);
-            currentIterDate.setMonth(currentIterDate.getMonth() + 1);
+            // Recalculate based on events up to that point
+            let val = 0;
+            events.forEach(e => {
+                 if (e.date <= cutOff) {
+                     val += e.grossVal; 
+                 }
+            });
+            dataVested.push(val);
         }
 
         if (myChart) myChart.destroy();
 
         myChart = new Chart(ctx, {
-            type: 'line',
+            type: 'bar', // Bar chart is often clearer for annual steps
             data: {
-                labels: Array.from({length: 61}, (_, i) => {
-                    const d = new Date(today); d.setMonth(d.getMonth() + i);
-                    return d.toLocaleDateString(undefined, {year:'2-digit', month:'short'});
-                }),
+                labels: labels,
                 datasets: [{
                     label: 'Projected Vested Wealth',
-                    data: chartData,
-                    borderColor: '#4ade80',
-                    backgroundColor: 'rgba(74, 222, 128, 0.1)',
-                    fill: true,
-                    tension: 0.3,
-                    pointRadius: 0,
-                    hitRadius: 10
+                    data: dataVested,
+                    backgroundColor: 'rgba(56, 189, 248, 0.5)',
+                    borderColor: '#38bdf8',
+                    borderWidth: 1
                 }]
             },
             options: {
@@ -549,7 +561,7 @@
                     },
                     x: {
                         grid: { display: false },
-                        ticks: { color: '#94a3b8', maxTicksLimit: 6 }
+                        ticks: { color: '#94a3b8', font: {size: 14} }
                     }
                 },
                 plugins: {
