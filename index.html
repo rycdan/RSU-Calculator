@@ -234,22 +234,81 @@
 </div>
 
 <script>
-    // State
-    let grants = [];
+    // --- STATE MANAGEMENT ---
+
+    // 1. Run this immediately when the page loads
+    window.onload = function() {
+        if (localStorage.getItem('rsu_data_v1')) {
+            loadData();
+        } else {
+            // Default demo data if no save exists
+            addGrant('past', '2023-12-20', 1000, 'annual4');
+            calculate(); // Calculates and saves
+        }
+    }
+
+    // 2. Save everything to browser memory
+    function saveData() {
+        const data = {
+            settings: {
+                price: document.getElementById('sharePrice').value,
+                tax: document.getElementById('taxRate').value,
+                defDate: document.getElementById('defaultFutureDate').value,
+                view: document.getElementById('viewFilter').value
+            },
+            past: getGrantsFromContainer('pastGrantsList'),
+            future: getGrantsFromContainer('futureGrantsList')
+        };
+        localStorage.setItem('rsu_data_v1', JSON.stringify(data));
+    }
+
+    // 3. Load data from browser memory
+    function loadData() {
+        const saved = JSON.parse(localStorage.getItem('rsu_data_v1'));
+        
+        // Restore Settings
+        if(saved.settings) {
+            document.getElementById('sharePrice').value = saved.settings.price || 50;
+            document.getElementById('taxRate').value = saved.settings.tax || 35;
+            document.getElementById('defaultFutureDate').value = saved.settings.defDate || '2026-12-20';
+            document.getElementById('viewFilter').value = saved.settings.view || 'future';
+        }
+
+        // Restore Grants
+        // We clear the lists first to avoid duplicates
+        document.getElementById('pastGrantsList').innerHTML = '';
+        document.getElementById('futureGrantsList').innerHTML = '';
+
+        if(saved.past) saved.past.forEach(g => addGrant('past', g.date, g.shares, g.schedule));
+        if(saved.future) saved.future.forEach(g => addGrant('future', g.date, g.shares, g.schedule));
+
+        calculate(false); // Calculate but don't re-save immediately to avoid loops
+    }
+
+    // Helper to extract data for saving
+    function getGrantsFromContainer(containerId) {
+        const container = document.getElementById(containerId);
+        const items = container.querySelectorAll('.grant-item');
+        const list = [];
+        items.forEach(div => {
+            list.push({
+                date: div.querySelector('.grant-date').value,
+                shares: div.querySelector('.grant-shares').value,
+                schedule: div.querySelector('.grant-schedule').value
+            });
+        });
+        return list;
+    }
+
+    // --- CORE LOGIC ---
+
     const today = new Date();
     document.getElementById('currentDateDisplay').innerText = today.toLocaleDateString();
 
-    // Initialize with one past grant
-    window.onload = function() {
-        // Add a demo past grant
-        addGrant('past', '2023-12-20', 1000);
-        calculate();
-    }
-
-    function addGrant(type, dateVal = '', sharesVal = '') {
-        const id = Date.now().toString();
+    // Updated addGrant to accept 'schedule' and trigger calculation
+    function addGrant(type, dateVal = '', sharesVal = '', scheduleVal = 'annual4') {
+        const id = Date.now().toString() + Math.random().toString().slice(2,5); // Unique ID
         
-        // Default date logic for future grants
         if(type === 'future' && !dateVal) {
              const defDate = document.getElementById('defaultFutureDate').value;
              dateVal = defDate;
@@ -278,107 +337,52 @@
             <div class="input-group" style="margin-top:10px; margin-bottom:0;">
                 <label>Vesting Schedule</label>
                 <select class="grant-schedule" onchange="calculate()">
-                    <option value="annual4">4 Years (25% Annually)</option>
-                    <option value="monthly4">4 Years (25% Cliff + Monthly)</option>
-                    <option value="quarterly4">4 Years (Quarterly)</option>
+                    <option value="annual4" ${scheduleVal === 'annual4' ? 'selected' : ''}>4 Years (25% Annually)</option>
+                    <option value="monthly4" ${scheduleVal === 'monthly4' ? 'selected' : ''}>4 Years (25% Cliff + Monthly)</option>
+                    <option value="quarterly4" ${scheduleVal === 'quarterly4' ? 'selected' : ''}>4 Years (Quarterly)</option>
                 </select>
             </div>
         `;
         container.appendChild(div);
-        calculate();
     }
 
     function removeGrant(id) {
-        document.getElementById(`grant-${id}`).remove();
+        const el = document.getElementById(`grant-${id}`);
+        if(el) el.remove();
         calculate();
     }
 
-    function getGrantData() {
-        const grantDivs = document.querySelectorAll('.grant-item');
-        const data = [];
-        
-        grantDivs.forEach(div => {
-            const dateStr = div.querySelector('.grant-date').value;
-            const shares = parseFloat(div.querySelector('.grant-shares').value) || 0;
-            const schedule = div.querySelector('.grant-schedule').value;
-            
-            if (dateStr && shares > 0) {
-                data.push({
-                    id: div.id,
-                    date: new Date(dateStr),
-                    shares: shares,
-                    schedule: schedule
-                });
-            }
-        });
-        return data;
-    }
-
-    // Generate Vesting Events based on schedule
-    function generateEvents(grant) {
-        let events = [];
-        const startDate = new Date(grant.date);
-        
-        if (grant.schedule === 'annual4') {
-            for (let i = 1; i <= 4; i++) {
-                let d = new Date(startDate);
-                d.setFullYear(d.getFullYear() + i);
-                events.push({
-                    date: d,
-                    shares: grant.shares * 0.25,
-                    from: grant.id
-                });
-            }
-        } else if (grant.schedule === 'quarterly4') {
-            // 16 quarters
-            const sharesPerQ = grant.shares / 16;
-            for (let i = 1; i <= 16; i++) {
-                let d = new Date(startDate);
-                d.setMonth(d.getMonth() + (i * 3));
-                events.push({
-                    date: d,
-                    shares: sharesPerQ,
-                    from: grant.id
-                });
-            }
-        } else if (grant.schedule === 'monthly4') {
-             // 1 Year cliff (25%) then 1/48th monthly for 3 years
-             const cliffShares = grant.shares * 0.25;
-             const monthlyShares = (grant.shares * 0.75) / 36;
-             
-             // Cliff
-             let cliffDate = new Date(startDate);
-             cliffDate.setFullYear(cliffDate.getFullYear() + 1);
-             events.push({ date: cliffDate, shares: cliffShares, from: grant.id });
-
-             // Monthly
-             for (let i = 1; i <= 36; i++) {
-                 let d = new Date(cliffDate);
-                 d.setMonth(d.getMonth() + i);
-                 events.push({ date: d, shares: monthlyShares, from: grant.id });
-             }
-        }
-        
-        return events;
-    }
-
-    let currentEvents = [];
-
-    function calculate() {
+    // "Main" function that updates the UI
+    function calculate(shouldSave = true) {
+        // 1. Get Settings
         const price = parseFloat(document.getElementById('sharePrice').value) || 0;
         const taxRate = parseFloat(document.getElementById('taxRate').value) / 100 || 0;
-        const grantsData = getGrantData();
         
+        // 2. Gather all grants (both lists) for calculation
+        const allGrants = [
+            ...getGrantsFromContainer('pastGrantsList'),
+            ...getGrantsFromContainer('futureGrantsList')
+        ];
+
         let allEvents = [];
-        grantsData.forEach(g => {
-            allEvents = allEvents.concat(generateEvents(g));
+        
+        // 3. Generate vesting events
+        allGrants.forEach(g => {
+            if(g.date && g.shares > 0) {
+                // Convert string date to object
+                const grantObj = {
+                    date: new Date(g.date),
+                    shares: parseFloat(g.shares),
+                    schedule: g.schedule
+                };
+                allEvents = allEvents.concat(generateEvents(grantObj));
+            }
         });
 
-        // Sort events
+        // Sort by date
         allEvents.sort((a, b) => a.date - b.date);
-        currentEvents = allEvents; // Store for render
-
-        // Calculate Totals
+        
+        // 4. Calculate Totals
         let totalVestedNet = 0;
         let totalUnvestedGross = 0;
         let totalPortfolioGross = 0;
@@ -397,24 +401,61 @@
             }
         });
 
-        // Update UI
+        // 5. Update UI
         document.getElementById('valVested').innerText = formatCurrency(totalVestedNet);
         document.getElementById('valUnvested').innerText = formatCurrency(totalUnvestedGross);
         document.getElementById('valTotal').innerText = formatCurrency(totalPortfolioGross);
 
-        renderTimeline();
+        renderTimeline(allEvents, price, taxRate);
+
+        // 6. Save State (unless explicitly skipped)
+        if(shouldSave) saveData();
     }
 
-    function renderTimeline() {
-        const price = parseFloat(document.getElementById('sharePrice').value) || 0;
-        const taxRate = parseFloat(document.getElementById('taxRate').value) / 100 || 0;
+    // Logic to split grants into vesting chunks
+    function generateEvents(grant) {
+        let events = [];
+        const startDate = new Date(grant.date);
+        // Correct for timezone offsets often causing "previous day" bugs
+        // We'll treat the input date as UTC noon to be safe, or just use simple date manipulation
+        
+        if (grant.schedule === 'annual4') {
+            for (let i = 1; i <= 4; i++) {
+                let d = new Date(startDate);
+                d.setFullYear(d.getFullYear() + i);
+                events.push({ date: d, shares: grant.shares * 0.25 });
+            }
+        } else if (grant.schedule === 'quarterly4') {
+            const sharesPerQ = grant.shares / 16;
+            for (let i = 1; i <= 16; i++) {
+                let d = new Date(startDate);
+                d.setMonth(d.getMonth() + (i * 3));
+                events.push({ date: d, shares: sharesPerQ });
+            }
+        } else if (grant.schedule === 'monthly4') {
+             const cliffShares = grant.shares * 0.25;
+             const monthlyShares = (grant.shares * 0.75) / 36;
+             
+             let cliffDate = new Date(startDate);
+             cliffDate.setFullYear(cliffDate.getFullYear() + 1);
+             events.push({ date: cliffDate, shares: cliffShares });
+
+             for (let i = 1; i <= 36; i++) {
+                 let d = new Date(cliffDate);
+                 d.setMonth(d.getMonth() + i);
+                 events.push({ date: d, shares: monthlyShares });
+             }
+        }
+        return events;
+    }
+
+    function renderTimeline(events, price, taxRate) {
         const filter = document.getElementById('viewFilter').value;
         const tbody = document.getElementById('timelineBody');
         tbody.innerHTML = '';
 
-        currentEvents.forEach(e => {
+        events.forEach(e => {
             const isVested = e.date <= today;
-            
             if (filter === 'future' && isVested) return;
 
             const grossVal = e.shares * price;
@@ -439,6 +480,5 @@
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
     }
 </script>
-
 </body>
 </html>
