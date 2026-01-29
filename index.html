@@ -32,7 +32,6 @@
         h1 { font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--accent); }
         h2 { font-size: 1.1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
 
-        /* Responsive Grid */
         .grid {
             display: grid;
             gap: 20px;
@@ -71,7 +70,6 @@
         }
         .btn-add { background: #334155; color: var(--text-main); margin-top: 10px; }
 
-        /* Grant Item Styling */
         .grant-item {
             background: rgba(255,255,255,0.05); padding: 10px; border-radius: 4px; margin-bottom: 10px;
         }
@@ -81,7 +79,6 @@
         .grant-inputs { display: flex; gap: 10px; }
         @media (max-width: 500px) { .grant-inputs { flex-direction: column; } }
 
-        /* Stats Grid */
         .summary-stats {
             display: grid;
             grid-template-columns: 1fr 1fr; 
@@ -100,7 +97,6 @@
         .val-net { color: var(--success); }
         .val-future { color: var(--accent); }
 
-        /* Tables */
         .timeline-container { max-height: 400px; overflow-y: auto; overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 500px; }
         th { position: sticky; top: 0; background: var(--card-bg); text-align: left; padding: 8px; color: var(--text-muted); border-bottom: 2px solid var(--border); }
@@ -187,12 +183,10 @@
                     <div class="stat-box">
                         <div class="stat-label">Unvested (Pre-Tax)</div>
                         <div class="stat-value" id="valUnvested">$0</div>
-                        <div class="stat-sub" style="font-size:0.6rem; color:var(--text-muted)">Existing Grants Only</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">Total (Pre-Tax)</div>
                         <div class="stat-value val-future" id="valTotal">$0</div>
-                        <div class="stat-sub" style="font-size:0.6rem; color:var(--text-muted)">Existing Grants Only</div>
                     </div>
                 </div>
             </div>
@@ -257,7 +251,7 @@
     document.getElementById('currentDateDisplay').innerText = today.toLocaleDateString();
 
     window.onload = function() {
-        if (localStorage.getItem('rsu_data_v6')) {
+        if (localStorage.getItem('rsu_data_v7')) {
             loadData();
         } else {
             // Default Requested Data (2021-2025)
@@ -285,12 +279,12 @@
             },
             past: getPastGrants()
         };
-        localStorage.setItem('rsu_data_v6', JSON.stringify(data));
+        localStorage.setItem('rsu_data_v7', JSON.stringify(data));
     }
 
     function loadData() {
         try {
-            const saved = JSON.parse(localStorage.getItem('rsu_data_v6'));
+            const saved = JSON.parse(localStorage.getItem('rsu_data_v7'));
             if(saved.settings) {
                 document.getElementById('marketCap').value = saved.settings.mcap || 20.0;
                 document.getElementById('growthRate').value = saved.settings.growth || 15;
@@ -347,7 +341,7 @@
     function calculate(shouldSave = true) {
         // 1. Calculate Price
         const mcap = parseFloat(document.getElementById('marketCap').value) || 0;
-        const price = (mcap * 10) / 3; // $20B -> $66.666...
+        const price = (mcap * 10) / 3; 
         
         document.getElementById('calculatedPrice').innerText = '$' + price.toFixed(2) + " / share";
 
@@ -378,14 +372,15 @@
         let events = [];
         allGrants.forEach(g => {
             if(g.date && g.shares > 0) {
-                const start = new Date(g.date);
+                const grantDate = new Date(g.date);
                 const shareCount = parseFloat(g.shares);
                 
                 for (let i = 1; i <= 4; i++) {
-                    let vestDate = new Date(start);
+                    let vestDate = new Date(grantDate);
                     vestDate.setFullYear(vestDate.getFullYear() + i);
                     events.push({ 
                         date: vestDate, 
+                        grantDate: grantDate, // Store grant date for filtering later
                         shares: shareCount * 0.25, 
                         origin: g.origin 
                     });
@@ -412,9 +407,6 @@
             e.netVal = e.grossVal * (1 - taxRate);
 
             // --- STRICT SNAPSHOT LOGIC ---
-            // Only consider grants with origin 'past' for the main dashboard.
-            // Future/Recurring grants are ignored here.
-
             if (e.origin === 'past') {
                 if (e.isVested) {
                     snapshotVestedGross += e.grossVal;
@@ -422,7 +414,6 @@
                 } else {
                     snapshotUnvestedGross += e.grossVal;
                 }
-                // Total is strictly what you have + what is promised from existing grants
                 snapshotTotalGross += e.grossVal;
             }
         });
@@ -461,9 +452,17 @@
 
             events.forEach(e => {
                 if (e.date <= yearEnd) {
+                    // Already Vested by Year End
+                    // If it is a future grant, we only count it if the Grant Date has passed relative to Year End
+                    // But if it Vested, the Grant must have passed, so this simple check is safe.
                     accVestedShares += e.shares;
                 } else {
-                    unvestedShares += e.shares;
+                    // Not Vested Yet.
+                    // CRITICAL LOGIC: Only count as "Unvested" if the GRANT DATE has occurred by this year end.
+                    // If the grant happens in 2027, it should NOT count as "Unvested" in 2026.
+                    if (e.grantDate <= yearEnd) {
+                        unvestedShares += e.shares;
+                    }
                 }
             });
 
