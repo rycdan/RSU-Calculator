@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RSU Calculator</title>
+    <title>RSU Wealth Forecaster</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -23,27 +23,29 @@
             background-color: var(--bg-color);
             color: var(--text-main);
             margin: 0;
-            padding: 20px;
+            padding: 15px;
             line-height: 1.5;
         }
 
         .container { max-width: 1200px; margin: 0 auto; }
-        h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: var(--accent); }
-        h2 { font-size: 1.2rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+        
+        h1 { font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--accent); }
+        h2 { font-size: 1.1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
 
+        /* Responsive Grid */
         .grid {
             display: grid;
             gap: 20px;
-            grid-template-columns: 1fr;
+            grid-template-columns: 1fr; /* Default mobile: 1 column */
         }
         @media (min-width: 1000px) {
-            .grid { grid-template-columns: 320px 1fr; }
+            .grid { grid-template-columns: 320px 1fr; } /* Desktop: Sidebar + Main */
         }
 
         .card {
             background: var(--card-bg);
             border-radius: 8px;
-            padding: 20px;
+            padding: 15px;
             border: 1px solid var(--border);
             margin-bottom: 20px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -56,7 +58,7 @@
             background: var(--bg-color);
             border: 1px solid var(--border);
             color: var(--text-main);
-            padding: 8px 12px;
+            padding: 10px; /* Larger touch target for mobile */
             border-radius: 4px;
             font-size: 1rem;
             box-sizing: border-box; 
@@ -64,42 +66,51 @@
         input:focus { outline: 2px solid var(--accent); border-color: transparent; }
 
         .btn {
-            background: var(--accent); color: var(--bg-color); border: none; padding: 8px 16px;
-            border-radius: 4px; cursor: pointer; font-weight: 600; width: 100%;
+            background: var(--accent); color: var(--bg-color); border: none; padding: 12px;
+            border-radius: 4px; cursor: pointer; font-weight: 600; width: 100%; font-size: 1rem;
         }
-        .btn:hover { background: var(--accent-hover); }
         .btn-add { background: #334155; color: var(--text-main); margin-top: 10px; }
-        .btn-add:hover { background: #475569; }
 
+        /* Grant Item Styling */
         .grant-item {
-            background: rgba(255,255,255,0.05); padding: 10px; border-radius: 4px; margin-bottom: 10px; position: relative;
+            background: rgba(255,255,255,0.05); padding: 10px; border-radius: 4px; margin-bottom: 10px;
         }
-        .grant-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; font-weight: bold; }
-        .remove-grant { color: var(--danger); cursor: pointer; }
+        .grant-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem; }
+        .remove-grant { color: var(--danger); cursor: pointer; padding: 0 5px; font-size: 1.2rem; }
+        
+        /* Mobile Fix: Stack inputs if narrow */
+        .grant-inputs {
+            display: flex;
+            gap: 10px;
+        }
+        @media (max-width: 500px) {
+            .grant-inputs { flex-direction: column; }
+        }
 
+        /* Stats Grid */
         .summary-stats {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: 1fr 1fr; /* 2 cols on mobile */
             gap: 10px;
             margin-bottom: 20px;
         }
-        @media (min-width: 600px) { .summary-stats { grid-template-columns: repeat(4, 1fr); } }
+        @media (min-width: 700px) { .summary-stats { grid-template-columns: repeat(4, 1fr); } }
 
         .stat-box {
-            background: rgba(255,255,255,0.03); padding: 15px; border-radius: 6px; text-align: center;
+            background: rgba(255,255,255,0.03); padding: 12px; border-radius: 6px; text-align: center;
         }
-        .stat-value { font-size: 1.1rem; font-weight: 700; color: var(--text-main); }
-        .stat-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-value { font-size: 1rem; font-weight: 700; color: var(--text-main); word-break: break-all; }
+        .stat-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
         
         .val-gross { color: #fbbf24; }
         .val-net { color: var(--success); }
         .val-future { color: var(--accent); }
 
         /* Tables */
-        .timeline-container { max-height: 400px; overflow-y: auto; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-        th { position: sticky; top: 0; background: var(--card-bg); text-align: left; padding: 10px; color: var(--text-muted); border-bottom: 2px solid var(--border); }
-        td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+        .timeline-container { max-height: 400px; overflow-y: auto; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 500px; /* Ensure scroll on small screens */ }
+        th { position: sticky; top: 0; background: var(--card-bg); text-align: left; padding: 8px; color: var(--text-muted); border-bottom: 2px solid var(--border); }
+        td { padding: 8px; border-bottom: 1px solid var(--border); }
         .vested-row { opacity: 0.5; }
         
         .year-summary-table th { background: #2a384e; }
@@ -108,7 +119,7 @@
         .chart-container { position: relative; height: 300px; width: 100%; margin-bottom: 20px; }
         
         .price-display {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: bold;
             color: var(--success);
             margin-top: 5px;
@@ -120,8 +131,8 @@
 
 <div class="container">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-        <h1>RSU Forecaster</h1>
-        <div style="font-size:0.9rem; color:var(--text-muted);">Today: <span id="currentDateDisplay"></span></div>
+        <h1>RSU Wealth Forecaster</h1>
+        <div style="font-size:0.8rem; color:var(--text-muted);">Today: <span id="currentDateDisplay"></span></div>
     </div>
 
     <div class="grid">
@@ -131,7 +142,7 @@
                 <h2>Assumptions</h2>
                 <div class="input-group">
                     <label>Market Cap ($ Billions)</label>
-                    <input type="number" id="marketCap" value="20" step="0.1" oninput="calculate()">
+                    <input type="number" id="marketCap" value="20.0" step="0.1" oninput="calculate()">
                     <span id="calculatedPrice" class="price-display">$66.67 / share</span>
                 </div>
                 <div class="input-group">
@@ -154,7 +165,7 @@
                     <label>Next Grant Date</label>
                     <input type="date" id="recurringDate" value="2026-12-20" onchange="calculate()">
                 </div>
-                <small style="color:var(--text-muted); font-size:0.8rem;">
+                <small style="color:var(--text-muted); font-size:0.75rem;">
                     *Projects this grant repeating for 5 years.
                 </small>
             </div>
@@ -169,7 +180,7 @@
         <div class="output-panel">
             
             <div class="card">
-                <h2>Current Snapshot (As of Today)</h2>
+                <h2>Current Snapshot (Today)</h2>
                 <div class="summary-stats">
                     <div class="stat-box">
                         <div class="stat-label">Vested (Pre-Tax)</div>
@@ -180,22 +191,20 @@
                         <div class="stat-value val-net" id="valVestedNet">$0</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-label">Unvested (Gross)</div>
+                        <div class="stat-label">Unvested (Pre-Tax)</div>
                         <div class="stat-value" id="valUnvested">$0</div>
-                        <div class="stat-sub">Current Grants Only</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-label">Total Portfolio</div>
+                        <div class="stat-label">Total (Pre-Tax)</div>
                         <div class="stat-value val-future" id="valTotal">$0</div>
-                        <div class="stat-sub">Current Grants Only</div>
                     </div>
                 </div>
             </div>
 
             <div class="card">
-                <h2>Projected Growth (5 Years)</h2>
+                <h2>Projected Wealth Growth (5 Years)</h2>
                 <div class="chart-container">
-                    <canvas id="growthChart"></canvas>
+                    <canvas id="wealthChart"></canvas>
                 </div>
             </div>
 
@@ -208,8 +217,8 @@
                                 <th>Year</th>
                                 <th>Vested (Pre-Tax)</th>
                                 <th>Vested (Post-Tax)</th>
-                                <th>Unvested (Gross)</th>
-                                <th>Total Portfolio</th>
+                                <th>Unvested (Pre-Tax)</th>
+                                <th>Total (Pre-Tax)</th>
                             </tr>
                         </thead>
                         <tbody id="yearSummaryBody"></tbody>
@@ -231,8 +240,8 @@
                             <tr>
                                 <th>Date</th>
                                 <th>Shares</th>
-                                <th>Value (Gross)</th>
-                                <th>Net (Post-Tax)</th>
+                                <th>Value (Pre-Tax)</th>
+                                <th>Value (Post-Tax)</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -252,11 +261,19 @@
     document.getElementById('currentDateDisplay').innerText = today.toLocaleDateString();
 
     window.onload = function() {
-        if (localStorage.getItem('rsu_data_v4')) {
+        if (localStorage.getItem('rsu_data_v5')) {
             loadData();
         } else {
-            // Default Demo Data
-            addPastGrant('2023-12-20', 1000); 
+            // Default Requested Data
+            const defaults = [
+                {d: '2021-11-29', s: 1000},
+                {d: '2022-07-27', s: 1000},
+                {d: '2023-12-21', s: 1000},
+                {d: '2024-12-23', s: 1000},
+                {d: '2025-12-20', s: 1000}
+            ];
+            
+            defaults.forEach(g => addPastGrant(g.d, g.s));
             calculate();
         }
     }
@@ -272,14 +289,14 @@
             },
             past: getPastGrants()
         };
-        localStorage.setItem('rsu_data_v4', JSON.stringify(data));
+        localStorage.setItem('rsu_data_v5', JSON.stringify(data));
     }
 
     function loadData() {
         try {
-            const saved = JSON.parse(localStorage.getItem('rsu_data_v4'));
+            const saved = JSON.parse(localStorage.getItem('rsu_data_v5'));
             if(saved.settings) {
-                document.getElementById('marketCap').value = saved.settings.mcap || 20;
+                document.getElementById('marketCap').value = saved.settings.mcap || 20.0;
                 document.getElementById('growthRate').value = saved.settings.growth || 15;
                 document.getElementById('taxRate').value = saved.settings.tax || 35;
                 document.getElementById('recurringShares').value = saved.settings.recShares || 1000;
@@ -302,9 +319,15 @@
                 <span>Past Grant</span>
                 <span class="remove-grant" onclick="removeGrant('${id}')">&times;</span>
             </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                <div class="input-group" style="margin:0"><label>Date</label><input type="date" class="g-date" value="${dateVal}" onchange="calculate()"></div>
-                <div class="input-group" style="margin:0"><label>Shares</label><input type="number" class="g-shares" value="${sharesVal}" oninput="calculate()"></div>
+            <div class="grant-inputs">
+                <div class="input-group" style="margin:0; flex:1;">
+                    <label>Date</label>
+                    <input type="date" class="g-date" value="${dateVal}" onchange="calculate()">
+                </div>
+                <div class="input-group" style="margin:0; flex:1;">
+                    <label>Shares</label>
+                    <input type="number" class="g-shares" value="${sharesVal}" oninput="calculate()">
+                </div>
             </div>
         `;
         document.getElementById('pastGrantsList').appendChild(div);
@@ -326,13 +349,11 @@
     // --- CALCULATION ENGINE ---
 
     function calculate(shouldSave = true) {
-        // 1. Calculate Price from Market Cap
-        // Price = (Cap * 1B) / 300M shares -> Cap * 10 / 3
+        // 1. Calculate Price
         const mcap = parseFloat(document.getElementById('marketCap').value) || 0;
-        const price = (mcap * 10) / 3;
+        const price = (mcap * 10) / 3; // $20B -> $66.666...
         
-        // Update display
-        document.getElementById('calculatedPrice').innerText = formatMoney(price).replace('$0.00', '$0') + " / share";
+        document.getElementById('calculatedPrice').innerText = '$' + price.toFixed(2) + " / share";
 
         const growthRate = parseFloat(document.getElementById('growthRate').value) / 100 || 0;
         const taxRate = parseFloat(document.getElementById('taxRate').value) / 100 || 0;
@@ -394,18 +415,12 @@
             e.grossVal = e.shares * e.projectedPrice;
             e.netVal = e.grossVal * (1 - taxRate);
 
-            // --- SNAPSHOT LOGIC ---
-            // Only count "Past" grants for the "Current Snapshot" stats
-            // "Vested" is naturally only from past grants.
-            // "Unvested" should NOT include the speculative future grants.
-            
+            // Snapshot Logic
             if (e.isVested) {
-                // Vested is always real
                 snapshotVestedGross += e.grossVal;
                 snapshotVestedNet += e.netVal;
                 snapshotTotalGross += e.grossVal;
             } else {
-                // Only add to snapshot if it's from a grant we already have
                 if (e.origin === 'past') {
                     snapshotUnvestedGross += e.grossVal;
                     snapshotTotalGross += e.grossVal;
@@ -446,7 +461,6 @@
             let unvestedShares = 0;
 
             events.forEach(e => {
-                // For projections, we include EVERYTHING (Past + Future)
                 if (e.date <= yearEnd) {
                     accVestedShares += e.shares;
                 } else {
@@ -482,7 +496,6 @@
             const tr = document.createElement('tr');
             if (e.isVested) tr.className = 'vested-row';
             
-            // Full Year Format
             const dateStr = e.date.toLocaleDateString(undefined, {
                 year: 'numeric', 
                 month: 'short', 
@@ -501,37 +514,34 @@
     }
 
     function renderChart(events) {
-        const ctx = document.getElementById('growthChart').getContext('2d');
-        
-        // 5 Years Out
-        const limitDate = new Date(today);
-        limitDate.setFullYear(today.getFullYear() + 5);
-
-        // We want to sample the value at the end of each YEAR
+        const ctx = document.getElementById('wealthChart').getContext('2d');
         const labels = [];
         const dataVested = [];
-        
-        // Initialize with Today
-        let runningVested = 0;
-        events.filter(e => e.date <= today).forEach(e => runningVested += e.grossVal);
-        
-        labels.push(today.getFullYear());
-        dataVested.push(runningVested);
 
-        // Loop next 5 years
-        for (let i = 1; i <= 5; i++) {
-            const y = today.getFullYear() + i;
-            labels.push(y);
+        // Generate Quarterly Data Points for 5 Years
+        // Quarters: March 31, June 30, Sept 30, Dec 31
+        const quarters = [2, 5, 8, 11]; // Months (0-indexed)
+        const currentYear = today.getFullYear();
+        
+        for (let i = 0; i < 20; i++) { // 5 years * 4 quarters = 20 points
+            const offset = Math.floor(i / 4);
+            const qIndex = i % 4;
+            const year = currentYear + offset;
+            const month = quarters[qIndex];
             
-            // Calculate Total Vested at end of Year Y
-            const cutOff = new Date(`${y}-12-31`);
+            // Create Date Object for end of quarter
+            const qDate = new Date(year, month + 1, 0); // Last day of month
             
-            // Recalculate based on events up to that point
+            if (qDate < today) continue; // Skip past quarters
+
+            labels.push(`Q${qIndex+1} '${year.toString().slice(2)}`);
+
+            // Calculate Accumulated Vested Value at this date
             let val = 0;
             events.forEach(e => {
-                 if (e.date <= cutOff) {
-                     val += e.grossVal; 
-                 }
+                if (e.date <= qDate) {
+                    val += e.grossVal; 
+                }
             });
             dataVested.push(val);
         }
@@ -539,15 +549,18 @@
         if (myChart) myChart.destroy();
 
         myChart = new Chart(ctx, {
-            type: 'bar', // Bar chart is often clearer for annual steps
+            type: 'line',
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'Projected Vested Growth',
+                    label: 'Projected Vested Wealth',
                     data: dataVested,
-                    backgroundColor: 'rgba(56, 189, 248, 0.5)',
                     borderColor: '#38bdf8',
-                    borderWidth: 1
+                    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointHoverRadius: 6
                 }]
             },
             options: {
@@ -561,7 +574,7 @@
                     },
                     x: {
                         grid: { display: false },
-                        ticks: { color: '#94a3b8', font: {size: 14} }
+                        ticks: { color: '#94a3b8', maxTicksLimit: 10, maxRotation: 45, minRotation: 45 }
                     }
                 },
                 plugins: {
