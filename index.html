@@ -30,17 +30,30 @@
         .container { max-width: 1200px; margin: 0 auto; }
         
         h1 { font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--accent); }
-        h2 { font-size: 1.1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
 
+        /* --- LAYOUT GRID --- */
         .grid {
             display: grid;
             gap: 20px;
+            /* Mobile Default: 1 Column */
             grid-template-columns: 1fr; 
-        }
-        @media (min-width: 1000px) {
-            .grid { grid-template-columns: 320px 1fr; } 
+            grid-template-areas: 
+                "main"
+                "sidebar";
         }
 
+        /* Desktop: Side-by-Side (Sidebar Left, Main Right) */
+        @media (min-width: 1000px) {
+            .grid { 
+                grid-template-columns: 320px 1fr; 
+                grid-template-areas: "sidebar main";
+            } 
+        }
+
+        .input-panel { grid-area: sidebar; }
+        .output-panel { grid-area: main; }
+
+        /* --- CARDS & INPUTS --- */
         .card {
             background: var(--card-bg);
             border-radius: 8px;
@@ -50,10 +63,14 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
+        h2 { font-size: 1.1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-top: 0; }
+
         .input-group { margin-bottom: 15px; }
         label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px; }
+        
         input {
             width: 100%;
+            max-width: 100%; /* Fixes overflow */
             background: var(--bg-color);
             border: 1px solid var(--border);
             color: var(--text-main);
@@ -70,6 +87,7 @@
         }
         .btn-add { background: #334155; color: var(--text-main); margin-top: 10px; }
 
+        /* Grant Item Styling */
         .grant-item {
             background: rgba(255,255,255,0.05); padding: 10px; border-radius: 4px; margin-bottom: 10px;
         }
@@ -77,8 +95,12 @@
         .remove-grant { color: var(--danger); cursor: pointer; padding: 0 5px; font-size: 1.2rem; }
         
         .grant-inputs { display: flex; gap: 10px; }
+        /* Fixes flex child overflow */
+        .grant-inputs > div { min-width: 0; } 
+
         @media (max-width: 500px) { .grant-inputs { flex-direction: column; } }
 
+        /* Stats Grid */
         .summary-stats {
             display: grid;
             grid-template-columns: 1fr 1fr; 
@@ -92,11 +114,13 @@
         }
         .stat-value { font-size: 1rem; font-weight: 700; color: var(--text-main); word-break: break-all; }
         .stat-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+        .stat-sub { font-size: 0.6rem; color: var(--text-muted); }
         
         .val-gross { color: #fbbf24; }
         .val-net { color: var(--success); }
         .val-future { color: var(--accent); }
 
+        /* Tables */
         .timeline-container { max-height: 400px; overflow-y: auto; overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 500px; }
         th { position: sticky; top: 0; background: var(--card-bg); text-align: left; padding: 8px; color: var(--text-muted); border-bottom: 2px solid var(--border); }
@@ -126,47 +150,6 @@
     </div>
 
     <div class="grid">
-        <div class="input-panel">
-            
-            <div class="card">
-                <h2>Assumptions</h2>
-                <div class="input-group">
-                    <label>Market Cap ($ Billions)</label>
-                    <input type="number" id="marketCap" value="20.0" step="0.1" onfocus="this.select()" oninput="calculate()">
-                    <span id="calculatedPrice" class="price-display">$66.67 / share</span>
-                </div>
-                <div class="input-group">
-                    <label>Growth Rate (Annual %)</label>
-                    <input type="number" id="growthRate" value="15" step="0.1" onfocus="this.select()" oninput="calculate()">
-                </div>
-                <div class="input-group">
-                    <label>Tax Rate (%)</label>
-                    <input type="number" id="taxRate" value="35" onfocus="this.select()" oninput="calculate()">
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>Future Grants</h2>
-                <div class="input-group">
-                    <label>Annual Grant Amount (Shares)</label>
-                    <input type="number" id="recurringShares" value="1000" onfocus="this.select()" oninput="calculate()">
-                </div>
-                <div class="input-group">
-                    <label>Next Grant Date</label>
-                    <input type="date" id="recurringDate" value="2026-12-20" onchange="calculate()">
-                </div>
-                <small style="color:var(--text-muted); font-size:0.75rem;">
-                    *Projects this grant repeating for 5 years.
-                </small>
-            </div>
-
-            <div class="card">
-                <h2>Past Grants</h2>
-                <div id="pastGrantsList"></div>
-                <button class="btn btn-add" onclick="addPastGrant()">+ Add Past Grant</button>
-            </div>
-        </div>
-
         <div class="output-panel">
             
             <div class="card">
@@ -240,6 +223,47 @@
                 </div>
             </div>
         </div>
+
+        <div class="input-panel">
+            
+            <div class="card">
+                <h2>Assumptions</h2>
+                <div class="input-group">
+                    <label>Market Cap ($ Billions)</label>
+                    <input type="number" id="marketCap" value="20.0" step="0.1" onfocus="this.select()" oninput="calculate()">
+                    <span id="calculatedPrice" class="price-display">$66.67 / share</span>
+                </div>
+                <div class="input-group">
+                    <label>Growth Rate (Annual %)</label>
+                    <input type="number" id="growthRate" value="15" step="0.1" onfocus="this.select()" oninput="calculate()">
+                </div>
+                <div class="input-group">
+                    <label>Tax Rate (%)</label>
+                    <input type="number" id="taxRate" value="35" onfocus="this.select()" oninput="calculate()">
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Future Grants</h2>
+                <div class="input-group">
+                    <label>Annual Grant Amount (Shares)</label>
+                    <input type="number" id="recurringShares" value="1000" onfocus="this.select()" oninput="calculate()">
+                </div>
+                <div class="input-group">
+                    <label>Next Grant Date</label>
+                    <input type="date" id="recurringDate" value="2026-12-20" onchange="calculate()">
+                </div>
+                <small style="color:var(--text-muted); font-size:0.75rem;">
+                    *Projects this grant repeating for 5 years.
+                </small>
+            </div>
+
+            <div class="card">
+                <h2>Past Grants</h2>
+                <div id="pastGrantsList"></div>
+                <button class="btn btn-add" onclick="addPastGrant()">+ Add Past Grant</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -251,7 +275,7 @@
     document.getElementById('currentDateDisplay').innerText = today.toLocaleDateString();
 
     window.onload = function() {
-        if (localStorage.getItem('rsu_data_v7')) {
+        if (localStorage.getItem('rsu_data_v8')) {
             loadData();
         } else {
             // Default Requested Data (2021-2025)
@@ -279,12 +303,12 @@
             },
             past: getPastGrants()
         };
-        localStorage.setItem('rsu_data_v7', JSON.stringify(data));
+        localStorage.setItem('rsu_data_v8', JSON.stringify(data));
     }
 
     function loadData() {
         try {
-            const saved = JSON.parse(localStorage.getItem('rsu_data_v7'));
+            const saved = JSON.parse(localStorage.getItem('rsu_data_v8'));
             if(saved.settings) {
                 document.getElementById('marketCap').value = saved.settings.mcap || 20.0;
                 document.getElementById('growthRate').value = saved.settings.growth || 15;
@@ -380,7 +404,7 @@
                     vestDate.setFullYear(vestDate.getFullYear() + i);
                     events.push({ 
                         date: vestDate, 
-                        grantDate: grantDate, // Store grant date for filtering later
+                        grantDate: grantDate, 
                         shares: shareCount * 0.25, 
                         origin: g.origin 
                     });
@@ -452,14 +476,9 @@
 
             events.forEach(e => {
                 if (e.date <= yearEnd) {
-                    // Already Vested by Year End
-                    // If it is a future grant, we only count it if the Grant Date has passed relative to Year End
-                    // But if it Vested, the Grant must have passed, so this simple check is safe.
                     accVestedShares += e.shares;
                 } else {
-                    // Not Vested Yet.
-                    // CRITICAL LOGIC: Only count as "Unvested" if the GRANT DATE has occurred by this year end.
-                    // If the grant happens in 2027, it should NOT count as "Unvested" in 2026.
+                    // CRITICAL LOGIC: Only count "Unvested" if the GRANT DATE has occurred by this year end.
                     if (e.grantDate <= yearEnd) {
                         unvestedShares += e.shares;
                     }
