@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RSU Wealth Forecaster</title>
+    <title>RSU Calculator</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -36,10 +36,10 @@
         .grid {
             display: grid;
             gap: 20px;
-            grid-template-columns: 1fr; /* Default mobile: 1 column */
+            grid-template-columns: 1fr; 
         }
         @media (min-width: 1000px) {
-            .grid { grid-template-columns: 320px 1fr; } /* Desktop: Sidebar + Main */
+            .grid { grid-template-columns: 320px 1fr; } 
         }
 
         .card {
@@ -58,7 +58,7 @@
             background: var(--bg-color);
             border: 1px solid var(--border);
             color: var(--text-main);
-            padding: 10px; /* Larger touch target for mobile */
+            padding: 10px; 
             border-radius: 4px;
             font-size: 1rem;
             box-sizing: border-box; 
@@ -78,19 +78,13 @@
         .grant-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem; }
         .remove-grant { color: var(--danger); cursor: pointer; padding: 0 5px; font-size: 1.2rem; }
         
-        /* Mobile Fix: Stack inputs if narrow */
-        .grant-inputs {
-            display: flex;
-            gap: 10px;
-        }
-        @media (max-width: 500px) {
-            .grant-inputs { flex-direction: column; }
-        }
+        .grant-inputs { display: flex; gap: 10px; }
+        @media (max-width: 500px) { .grant-inputs { flex-direction: column; } }
 
         /* Stats Grid */
         .summary-stats {
             display: grid;
-            grid-template-columns: 1fr 1fr; /* 2 cols on mobile */
+            grid-template-columns: 1fr 1fr; 
             gap: 10px;
             margin-bottom: 20px;
         }
@@ -108,7 +102,7 @@
 
         /* Tables */
         .timeline-container { max-height: 400px; overflow-y: auto; overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 500px; /* Ensure scroll on small screens */ }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 500px; }
         th { position: sticky; top: 0; background: var(--card-bg); text-align: left; padding: 8px; color: var(--text-muted); border-bottom: 2px solid var(--border); }
         td { padding: 8px; border-bottom: 1px solid var(--border); }
         .vested-row { opacity: 0.5; }
@@ -131,7 +125,7 @@
 
 <div class="container">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-        <h1>RSU Wealth Forecaster</h1>
+        <h1>RSU Calculator</h1>
         <div style="font-size:0.8rem; color:var(--text-muted);">Today: <span id="currentDateDisplay"></span></div>
     </div>
 
@@ -142,16 +136,16 @@
                 <h2>Assumptions</h2>
                 <div class="input-group">
                     <label>Market Cap ($ Billions)</label>
-                    <input type="number" id="marketCap" value="20.0" step="0.1" oninput="calculate()">
+                    <input type="number" id="marketCap" value="20.0" step="0.1" onfocus="this.select()" oninput="calculate()">
                     <span id="calculatedPrice" class="price-display">$66.67 / share</span>
                 </div>
                 <div class="input-group">
                     <label>Growth Rate (Annual %)</label>
-                    <input type="number" id="growthRate" value="15" step="0.1" oninput="calculate()">
+                    <input type="number" id="growthRate" value="15" step="0.1" onfocus="this.select()" oninput="calculate()">
                 </div>
                 <div class="input-group">
                     <label>Tax Rate (%)</label>
-                    <input type="number" id="taxRate" value="35" oninput="calculate()">
+                    <input type="number" id="taxRate" value="35" onfocus="this.select()" oninput="calculate()">
                 </div>
             </div>
 
@@ -159,7 +153,7 @@
                 <h2>Future Grants</h2>
                 <div class="input-group">
                     <label>Annual Grant Amount (Shares)</label>
-                    <input type="number" id="recurringShares" value="1000" oninput="calculate()">
+                    <input type="number" id="recurringShares" value="1000" onfocus="this.select()" oninput="calculate()">
                 </div>
                 <div class="input-group">
                     <label>Next Grant Date</label>
@@ -193,16 +187,18 @@
                     <div class="stat-box">
                         <div class="stat-label">Unvested (Pre-Tax)</div>
                         <div class="stat-value" id="valUnvested">$0</div>
+                        <div class="stat-sub" style="font-size:0.6rem; color:var(--text-muted)">Existing Grants Only</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">Total (Pre-Tax)</div>
                         <div class="stat-value val-future" id="valTotal">$0</div>
+                        <div class="stat-sub" style="font-size:0.6rem; color:var(--text-muted)">Existing Grants Only</div>
                     </div>
                 </div>
             </div>
 
             <div class="card">
-                <h2>Projected Wealth Growth (5 Years)</h2>
+                <h2>Projected Growth (5 Years)</h2>
                 <div class="chart-container">
                     <canvas id="wealthChart"></canvas>
                 </div>
@@ -261,10 +257,10 @@
     document.getElementById('currentDateDisplay').innerText = today.toLocaleDateString();
 
     window.onload = function() {
-        if (localStorage.getItem('rsu_data_v5')) {
+        if (localStorage.getItem('rsu_data_v6')) {
             loadData();
         } else {
-            // Default Requested Data
+            // Default Requested Data (2021-2025)
             const defaults = [
                 {d: '2021-11-29', s: 1000},
                 {d: '2022-07-27', s: 1000},
@@ -289,12 +285,12 @@
             },
             past: getPastGrants()
         };
-        localStorage.setItem('rsu_data_v5', JSON.stringify(data));
+        localStorage.setItem('rsu_data_v6', JSON.stringify(data));
     }
 
     function loadData() {
         try {
-            const saved = JSON.parse(localStorage.getItem('rsu_data_v5'));
+            const saved = JSON.parse(localStorage.getItem('rsu_data_v6'));
             if(saved.settings) {
                 document.getElementById('marketCap').value = saved.settings.mcap || 20.0;
                 document.getElementById('growthRate').value = saved.settings.growth || 15;
@@ -326,7 +322,7 @@
                 </div>
                 <div class="input-group" style="margin:0; flex:1;">
                     <label>Shares</label>
-                    <input type="number" class="g-shares" value="${sharesVal}" oninput="calculate()">
+                    <input type="number" class="g-shares" value="${sharesVal}" onfocus="this.select()" oninput="calculate()">
                 </div>
             </div>
         `;
@@ -415,16 +411,19 @@
             e.grossVal = e.shares * e.projectedPrice;
             e.netVal = e.grossVal * (1 - taxRate);
 
-            // Snapshot Logic
-            if (e.isVested) {
-                snapshotVestedGross += e.grossVal;
-                snapshotVestedNet += e.netVal;
-                snapshotTotalGross += e.grossVal;
-            } else {
-                if (e.origin === 'past') {
+            // --- STRICT SNAPSHOT LOGIC ---
+            // Only consider grants with origin 'past' for the main dashboard.
+            // Future/Recurring grants are ignored here.
+
+            if (e.origin === 'past') {
+                if (e.isVested) {
+                    snapshotVestedGross += e.grossVal;
+                    snapshotVestedNet += e.netVal;
+                } else {
                     snapshotUnvestedGross += e.grossVal;
-                    snapshotTotalGross += e.grossVal;
                 }
+                // Total is strictly what you have + what is promised from existing grants
+                snapshotTotalGross += e.grossVal;
             }
         });
 
@@ -518,25 +517,22 @@
         const labels = [];
         const dataVested = [];
 
-        // Generate Quarterly Data Points for 5 Years
-        // Quarters: March 31, June 30, Sept 30, Dec 31
-        const quarters = [2, 5, 8, 11]; // Months (0-indexed)
+        // Quarterly Data Points
+        const quarters = [2, 5, 8, 11]; 
         const currentYear = today.getFullYear();
         
-        for (let i = 0; i < 20; i++) { // 5 years * 4 quarters = 20 points
+        for (let i = 0; i < 20; i++) { 
             const offset = Math.floor(i / 4);
             const qIndex = i % 4;
             const year = currentYear + offset;
             const month = quarters[qIndex];
             
-            // Create Date Object for end of quarter
-            const qDate = new Date(year, month + 1, 0); // Last day of month
+            const qDate = new Date(year, month + 1, 0); 
             
-            if (qDate < today) continue; // Skip past quarters
+            if (qDate < today) continue; 
 
             labels.push(`Q${qIndex+1} '${year.toString().slice(2)}`);
 
-            // Calculate Accumulated Vested Value at this date
             let val = 0;
             events.forEach(e => {
                 if (e.date <= qDate) {
