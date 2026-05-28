@@ -229,9 +229,12 @@
             <div class="card">
                 <h2>Assumptions</h2>
                 <div class="input-group">
-                    <label>Market Cap ($ Billions)</label>
-                    <input type="number" id="marketCap" value="20.0" step="0.1" onfocus="this.select()" oninput="calculate()">
-                    <span id="calculatedPrice" class="price-display">$66.67 / share</span>
+                    <label>Share Price ($) — <span id="priceSource" style="color:var(--text-muted)">Manual</span></label>
+                    <div style="display:flex; gap:8px;">
+                        <input type="number" id="sharePrice" value="50.00" step="0.01" min="0" onfocus="this.select()" oninput="calculate()" style="flex:1;">
+                        <button id="liveBtn" onclick="fetchLivePrice()" title="Fetch live QNT price from NASDAQ" style="width:auto; padding:10px 14px; background:var(--border); border:1px solid var(--border); color:var(--text-main); border-radius:4px; cursor:pointer; font-size:1rem; flex-shrink:0;">⟳</button>
+                    </div>
+                    <span id="priceStatus" class="price-display" style="font-size:0.72rem; margin-top:4px;"></span>
                 </div>
                 <div class="input-group">
                     <label>Growth Rate (Annual %)</label>
@@ -269,13 +272,28 @@
 
 <script>
     // --- STATE MANAGEMENT ---
-    let myChart = null; 
-    let currentCalculatedEvents = []; 
+    let myChart = null;
+    let currentCalculatedEvents = [];
     const today = new Date();
     document.getElementById('currentDateDisplay').innerText = today.toLocaleDateString();
 
+    const QNT_IPO_DATE = new Date('2026-06-05');
+    const QNT_TICKER = 'QNT';
+
     window.onload = function() {
-        if (localStorage.getItem('rsu_data_v8')) {
+        if (localStorage.getItem('rsu_data_v9')) {
+            loadData();
+        } else if (localStorage.getItem('rsu_data_v8')) {
+            // Migrate from v8 (market cap) to v9 (direct share price)
+            try {
+                const old = JSON.parse(localStorage.getItem('rsu_data_v8'));
+                if (old.settings && old.settings.mcap) {
+                    const migratedPrice = ((parseFloat(old.settings.mcap) * 10) / 3).toFixed(2);
+                    old.settings.sharePrice = migratedPrice;
+                    delete old.settings.mcap;
+                }
+                localStorage.setItem('rsu_data_v9', JSON.stringify(old));
+            } catch(e) { console.error('Migration error', e); }
             loadData();
         } else {
             // Default Requested Data (2021-2025)
@@ -290,12 +308,14 @@
             defaults.forEach(g => addPastGrant(g.d, g.s));
             calculate();
         }
+        initPriceStatus();
+        if (today >= QNT_IPO_DATE) fetchLivePrice();
     }
 
     function saveData() {
         const data = {
             settings: {
-                mcap: document.getElementById('marketCap').value,
+                sharePrice: document.getElementById('sharePrice').value,
                 growth: document.getElementById('growthRate').value,
                 tax: document.getElementById('taxRate').value,
                 recShares: document.getElementById('recurringShares').value,
@@ -303,14 +323,14 @@
             },
             past: getPastGrants()
         };
-        localStorage.setItem('rsu_data_v8', JSON.stringify(data));
+        localStorage.setItem('rsu_data_v9', JSON.stringify(data));
     }
 
     function loadData() {
         try {
-            const saved = JSON.parse(localStorage.getItem('rsu_data_v8'));
+            const saved = JSON.parse(localStorage.getItem('rsu_data_v9'));
             if(saved.settings) {
-                document.getElementById('marketCap').value = saved.settings.mcap || 20.0;
+                document.getElementById('sharePrice').value = saved.settings.sharePrice || 50.00;
                 document.getElementById('growthRate').value = saved.settings.growth || 15;
                 document.getElementById('taxRate').value = saved.settings.tax || 35;
                 document.getElementById('recurringShares').value = saved.settings.recShares || 1000;
@@ -363,11 +383,8 @@
     // --- CALCULATION ENGINE ---
 
     function calculate(shouldSave = true) {
-        // 1. Calculate Price
-        const mcap = parseFloat(document.getElementById('marketCap').value) || 0;
-        const price = (mcap * 10) / 3; 
-        
-        document.getElementById('calculatedPrice').innerText = '$' + price.toFixed(2) + " / share";
+        // 1. Get Price
+        const price = parseFloat(document.getElementById('sharePrice').value) || 0;
 
         const growthRate = parseFloat(document.getElementById('growthRate').value) / 100 || 0;
         const taxRate = parseFloat(document.getElementById('taxRate').value) / 100 || 0;
@@ -605,6 +622,67 @@
 
     function formatMoney(num) {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
+    }
+
+    function initPriceStatus() {
+        const status = document.getElementById('priceStatus');
+        const source = document.getElementById('priceSource');
+        if (today < QNT_IPO_DATE) {
+            const ipoStr = QNT_IPO_DATE.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+            status.textContent = `QNT IPO pending (${ipoStr}) — enter price manually`;
+            status.style.color = 'var(--text-muted)';
+            source.textContent = 'Manual';
+            source.style.color = 'var(--text-muted)';
+        } else {
+            status.textContent = 'Click ⟳ to fetch live NASDAQ price';
+            status.style.color = 'var(--text-muted)';
+        }
+    }
+
+    async function fetchLivePrice() {
+        const btn = document.getElementById('liveBtn');
+        const status = document.getElementById('priceStatus');
+        const source = document.getElementById('priceSource');
+
+        if (today < QNT_IPO_DATE) {
+            const ipoStr = QNT_IPO_DATE.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+            status.textContent = `QNT IPO pending (${ipoStr}) — enter price manually`;
+            status.style.color = 'var(--text-muted)';
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = '…';
+        status.textContent = 'Fetching live price…';
+        status.style.color = 'var(--text-muted)';
+
+        try {
+            const res = await fetch(
+                `https://query1.finance.yahoo.com/v8/finance/chart/${QNT_TICKER}?interval=1d&range=1d`,
+                { headers: { 'Accept': 'application/json' } }
+            );
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+            const meta = json?.chart?.result?.[0]?.meta;
+            if (!meta || !meta.regularMarketPrice) throw new Error('No price in response');
+
+            const livePrice = meta.regularMarketPrice;
+            document.getElementById('sharePrice').value = livePrice.toFixed(2);
+            const timeStr = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+            status.textContent = `Live · updated ${timeStr}`;
+            status.style.color = 'var(--success)';
+            source.textContent = 'Live (NASDAQ)';
+            source.style.color = 'var(--success)';
+            calculate();
+        } catch(e) {
+            status.textContent = `Could not fetch live price (${e.message}) — using manual value`;
+            status.style.color = 'var(--danger)';
+            source.textContent = 'Manual';
+            source.style.color = 'var(--text-muted)';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '⟳';
+        }
     }
 </script>
 </body>
