@@ -447,15 +447,17 @@
             e.grossVal = e.shares * e.projectedPrice;
             e.netVal = e.grossVal * (1 - taxRate);
 
-            // --- STRICT SNAPSHOT LOGIC ---
+            // --- STRICT SNAPSHOT LOGIC (always at current price, not projected) ---
             if (e.origin === 'past') {
+                const snapVal = e.shares * price;
+                const snapNet = snapVal * (1 - taxRate);
                 if (e.isVested) {
-                    snapshotVestedGross += e.grossVal;
-                    snapshotVestedNet += e.netVal;
+                    snapshotVestedGross += snapVal;
+                    snapshotVestedNet += snapNet;
                 } else {
-                    snapshotUnvestedGross += e.grossVal;
+                    snapshotUnvestedGross += snapVal;
                 }
-                snapshotTotalGross += e.grossVal;
+                snapshotTotalGross += snapVal;
             }
         });
 
