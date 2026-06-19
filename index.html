@@ -103,11 +103,19 @@
         /* Stats Grid */
         .summary-stats {
             display: grid;
-            grid-template-columns: 1fr 1fr; 
+            grid-template-columns: 1fr 1fr;
             gap: 10px;
             margin-bottom: 20px;
         }
-        @media (min-width: 700px) { .summary-stats { grid-template-columns: repeat(3, 1fr); } }
+        @media (min-width: 700px) { .summary-stats { grid-template-columns: repeat(4, 1fr); } }
+
+        .summary-stats-total {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        @media (min-width: 700px) { .summary-stats-total { grid-template-columns: repeat(3, 1fr); } }
 
         .stat-box {
             background: rgba(255,255,255,0.03); padding: 12px; border-radius: 6px; text-align: center;
@@ -186,7 +194,7 @@
         <div class="output-panel">
             
             <div class="card">
-                <h2>Current Snapshot (Today)</h2>
+                <h2>Vested Snapshot</h2>
                 <div class="summary-stats">
                     <div class="stat-box">
                         <div class="stat-label">Vested (Pre-Tax)</div>
@@ -197,14 +205,6 @@
                         <div class="stat-value val-net" id="valVestedNet">$0</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-label">Unvested (Pre-Tax)</div>
-                        <div class="stat-value" id="valUnvested">$0</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-label">Total (Pre-Tax)</div>
-                        <div class="stat-value val-future" id="valTotal">$0</div>
-                    </div>
-                    <div class="stat-box">
                         <div class="stat-label">Daily Gain/Loss</div>
                         <div class="stat-value" id="valDailyGain">—</div>
                         <div class="stat-sub" id="valDailyPct" style="margin-top:3px;font-size:0.65rem;"></div>
@@ -213,6 +213,38 @@
                         <div class="stat-label">vs IPO ($60 · Jun 4)</div>
                         <div class="stat-value" id="valIpoGain">—</div>
                         <div class="stat-sub" id="valIpoPct" style="margin-top:3px;font-size:0.65rem;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Total Portfolio Snapshot</h2>
+                <div class="summary-stats-total">
+                    <div class="stat-box">
+                        <div class="stat-label">Unvested (Pre-Tax)</div>
+                        <div class="stat-value" id="valUnvested">$0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Unvested (Post-Tax)</div>
+                        <div class="stat-value" id="valUnvestedNet">$0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Total (Pre-Tax)</div>
+                        <div class="stat-value val-future" id="valTotal">$0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Total (Post-Tax)</div>
+                        <div class="stat-value val-net" id="valTotalNet">$0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Daily Gain/Loss (Total)</div>
+                        <div class="stat-value" id="valDailyGainTotal">—</div>
+                        <div class="stat-sub" id="valDailyPctTotal" style="margin-top:3px;font-size:0.65rem;"></div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">vs IPO ($60 · Jun 4) Total</div>
+                        <div class="stat-value" id="valIpoGainTotal">—</div>
+                        <div class="stat-sub" id="valIpoPctTotal" style="margin-top:3px;font-size:0.65rem;"></div>
                     </div>
                 </div>
             </div>
@@ -280,7 +312,7 @@
                     <span id="priceStatus" class="price-display" style="font-size:0.72rem; margin-top:4px;"></span>
                 </div>
                 <div class="input-group">
-                    <label>Growth Rate (Annual %)</label>
+                    <label>Growth Rate Estimate (Annual %)</label>
                     <input type="number" id="growthRate" value="15" step="0.1" onfocus="this.select()" oninput="calculate()">
                 </div>
                 <div class="input-group">
@@ -479,8 +511,10 @@
         let snapshotVestedGross = 0;
         let snapshotVestedNet = 0;
         let snapshotUnvestedGross = 0;
+        let snapshotUnvestedNet = 0;
         let snapshotTotalGross = 0;
         let totalVestedShares = 0;
+        let totalAllShares = 0;
 
         events.forEach(e => {
             e.isVested = e.date <= today;
@@ -503,55 +537,70 @@
                     totalVestedShares += e.shares;
                 } else {
                     snapshotUnvestedGross += snapVal;
+                    snapshotUnvestedNet += snapNet;
                 }
                 snapshotTotalGross += snapVal;
+                totalAllShares += e.shares;
             }
         });
 
+        const snapshotTotalNet = snapshotVestedNet + snapshotUnvestedNet;
         currentCalculatedEvents = events;
 
-        // 5. Update Header Stats
+        // 5. Update Vested Snapshot card
         document.getElementById('valVestedGross').innerText = formatMoney(snapshotVestedGross);
         document.getElementById('valVestedNet').innerText = formatMoney(snapshotVestedNet);
+
+        function renderGainLoss(elId, pctId, shares, noDataMsg) {
+            const el = document.getElementById(elId);
+            const pctEl = document.getElementById(pctId);
+            if (livePreviousClose && price > 0 && shares > 0) {
+                const gain = (price - livePreviousClose) * shares;
+                const pct = ((price - livePreviousClose) / livePreviousClose) * 100;
+                const sign = gain >= 0 ? '+' : '';
+                const color = gain >= 0 ? 'var(--success)' : 'var(--danger)';
+                el.innerText = `${sign}${formatMoney(gain)}`;
+                el.style.color = color;
+                pctEl.innerText = `${sign}${pct.toFixed(2)}% vs prev close`;
+                pctEl.style.color = color;
+            } else {
+                el.innerText = '—';
+                el.style.color = 'var(--text-muted)';
+                pctEl.innerText = noDataMsg;
+                pctEl.style.color = 'var(--text-muted)';
+            }
+        }
+
+        function renderIpoGainLoss(elId, pctId, shares) {
+            const el = document.getElementById(elId);
+            const pctEl = document.getElementById(pctId);
+            if (price > 0 && shares > 0) {
+                const gain = (price - QNT_IPO_PRICE) * shares;
+                const pct = ((price - QNT_IPO_PRICE) / QNT_IPO_PRICE) * 100;
+                const sign = gain >= 0 ? '+' : '';
+                const color = gain >= 0 ? 'var(--success)' : 'var(--danger)';
+                el.innerText = `${sign}${formatMoney(gain)}`;
+                el.style.color = color;
+                pctEl.innerText = `${sign}${pct.toFixed(2)}% since IPO`;
+                pctEl.style.color = color;
+            } else {
+                el.innerText = '—';
+                el.style.color = 'var(--text-muted)';
+                pctEl.innerText = '';
+            }
+        }
+
+        renderGainLoss('valDailyGain', 'valDailyPct', totalVestedShares, livePreviousClose === null ? 'fetch live price' : '');
+        renderIpoGainLoss('valIpoGain', 'valIpoPct', totalVestedShares);
+
+        // 6. Update Total Portfolio Snapshot card
         document.getElementById('valUnvested').innerText = formatMoney(snapshotUnvestedGross);
+        document.getElementById('valUnvestedNet').innerText = formatMoney(snapshotUnvestedNet);
         document.getElementById('valTotal').innerText = formatMoney(snapshotTotalGross);
+        document.getElementById('valTotalNet').innerText = formatMoney(snapshotTotalNet);
 
-        // Daily gain/loss vs previous close (requires live price fetch)
-        const dailyEl = document.getElementById('valDailyGain');
-        const dailyPctEl = document.getElementById('valDailyPct');
-        if (livePreviousClose && price > 0 && totalVestedShares > 0) {
-            const dailyGain = (price - livePreviousClose) * totalVestedShares;
-            const dailyPct = ((price - livePreviousClose) / livePreviousClose) * 100;
-            const sign = dailyGain >= 0 ? '+' : '';
-            const color = dailyGain >= 0 ? 'var(--success)' : 'var(--danger)';
-            dailyEl.innerText = `${sign}${formatMoney(dailyGain)}`;
-            dailyEl.style.color = color;
-            dailyPctEl.innerText = `${sign}${dailyPct.toFixed(2)}% vs prev close`;
-            dailyPctEl.style.color = color;
-        } else {
-            dailyEl.innerText = '—';
-            dailyEl.style.color = 'var(--text-muted)';
-            dailyPctEl.innerText = livePreviousClose === null ? 'fetch live price' : '';
-            dailyPctEl.style.color = 'var(--text-muted)';
-        }
-
-        // Total gain/loss vs IPO price
-        const ipoEl = document.getElementById('valIpoGain');
-        const ipoPctEl = document.getElementById('valIpoPct');
-        if (price > 0 && totalVestedShares > 0) {
-            const ipoGain = (price - QNT_IPO_PRICE) * totalVestedShares;
-            const ipoPct = ((price - QNT_IPO_PRICE) / QNT_IPO_PRICE) * 100;
-            const sign = ipoGain >= 0 ? '+' : '';
-            const color = ipoGain >= 0 ? 'var(--success)' : 'var(--danger)';
-            ipoEl.innerText = `${sign}${formatMoney(ipoGain)}`;
-            ipoEl.style.color = color;
-            ipoPctEl.innerText = `${sign}${ipoPct.toFixed(2)}% since IPO`;
-            ipoPctEl.style.color = color;
-        } else {
-            ipoEl.innerText = '—';
-            ipoEl.style.color = 'var(--text-muted)';
-            ipoPctEl.innerText = '';
-        }
+        renderGainLoss('valDailyGainTotal', 'valDailyPctTotal', totalAllShares, livePreviousClose === null ? 'fetch live price' : '');
+        renderIpoGainLoss('valIpoGainTotal', 'valIpoPctTotal', totalAllShares);
 
         // 6. Render Visuals
         renderYearSummary(events, price, growthRate, taxRate);
