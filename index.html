@@ -107,7 +107,7 @@
             gap: 10px;
             margin-bottom: 20px;
         }
-        @media (min-width: 700px) { .summary-stats { grid-template-columns: repeat(4, 1fr); } }
+        @media (min-width: 700px) { .summary-stats { grid-template-columns: repeat(3, 1fr); } }
 
         .stat-box {
             background: rgba(255,255,255,0.03); padding: 12px; border-radius: 6px; text-align: center;
@@ -204,6 +204,16 @@
                         <div class="stat-label">Total (Pre-Tax)</div>
                         <div class="stat-value val-future" id="valTotal">$0</div>
                     </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Daily Gain/Loss</div>
+                        <div class="stat-value" id="valDailyGain">—</div>
+                        <div class="stat-sub" id="valDailyPct" style="margin-top:3px;font-size:0.65rem;"></div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">vs IPO ($60 · Jun 4)</div>
+                        <div class="stat-value" id="valIpoGain">—</div>
+                        <div class="stat-sub" id="valIpoPct" style="margin-top:3px;font-size:0.65rem;"></div>
+                    </div>
                 </div>
             </div>
 
@@ -275,7 +285,7 @@
                 </div>
                 <div class="input-group">
                     <label>Tax Rate (%)</label>
-                    <input type="number" id="taxRate" value="35" onfocus="this.select()" oninput="calculate()">
+                    <input type="number" id="taxRate" value="28.75" step="0.01" onfocus="this.select()" oninput="calculate()">
                 </div>
             </div>
 
@@ -312,6 +322,8 @@
 
     const QNT_IPO_DATE = new Date('2026-06-05');
     const QNT_TICKER = 'QNT';
+    const QNT_IPO_PRICE = 60;
+    let livePreviousClose = null;
 
     window.onload = function() {
         if (localStorage.getItem('rsu_data_v9')) {
@@ -365,7 +377,7 @@
             if(saved.settings) {
                 document.getElementById('sharePrice').value = saved.settings.sharePrice || 50.00;
                 document.getElementById('growthRate').value = saved.settings.growth || 15;
-                document.getElementById('taxRate').value = saved.settings.tax || 35;
+                document.getElementById('taxRate').value = saved.settings.tax || 28.75;
                 document.getElementById('recurringShares').value = saved.settings.recShares || 1000;
                 document.getElementById('recurringDate').value = saved.settings.recDate || '2026-12-20';
             }
@@ -466,16 +478,17 @@
         // 4. Process Values
         let snapshotVestedGross = 0;
         let snapshotVestedNet = 0;
-        let snapshotUnvestedGross = 0; 
+        let snapshotUnvestedGross = 0;
         let snapshotTotalGross = 0;
+        let totalVestedShares = 0;
 
         events.forEach(e => {
             e.isVested = e.date <= today;
-            
+
             // Calculate Projected Price
             let yearsInFuture = (e.date - today) / (1000 * 60 * 60 * 24 * 365);
             if (yearsInFuture < 0) yearsInFuture = 0;
-            
+
             e.projectedPrice = price * Math.pow((1 + growthRate), yearsInFuture);
             e.grossVal = e.shares * e.projectedPrice;
             e.netVal = e.grossVal * (1 - taxRate);
@@ -487,6 +500,7 @@
                 if (e.isVested) {
                     snapshotVestedGross += snapVal;
                     snapshotVestedNet += snapNet;
+                    totalVestedShares += e.shares;
                 } else {
                     snapshotUnvestedGross += snapVal;
                 }
@@ -501,6 +515,43 @@
         document.getElementById('valVestedNet').innerText = formatMoney(snapshotVestedNet);
         document.getElementById('valUnvested').innerText = formatMoney(snapshotUnvestedGross);
         document.getElementById('valTotal').innerText = formatMoney(snapshotTotalGross);
+
+        // Daily gain/loss vs previous close (requires live price fetch)
+        const dailyEl = document.getElementById('valDailyGain');
+        const dailyPctEl = document.getElementById('valDailyPct');
+        if (livePreviousClose && price > 0 && totalVestedShares > 0) {
+            const dailyGain = (price - livePreviousClose) * totalVestedShares;
+            const dailyPct = ((price - livePreviousClose) / livePreviousClose) * 100;
+            const sign = dailyGain >= 0 ? '+' : '';
+            const color = dailyGain >= 0 ? 'var(--success)' : 'var(--danger)';
+            dailyEl.innerText = `${sign}${formatMoney(dailyGain)}`;
+            dailyEl.style.color = color;
+            dailyPctEl.innerText = `${sign}${dailyPct.toFixed(2)}% vs prev close`;
+            dailyPctEl.style.color = color;
+        } else {
+            dailyEl.innerText = '—';
+            dailyEl.style.color = 'var(--text-muted)';
+            dailyPctEl.innerText = livePreviousClose === null ? 'fetch live price' : '';
+            dailyPctEl.style.color = 'var(--text-muted)';
+        }
+
+        // Total gain/loss vs IPO price
+        const ipoEl = document.getElementById('valIpoGain');
+        const ipoPctEl = document.getElementById('valIpoPct');
+        if (price > 0 && totalVestedShares > 0) {
+            const ipoGain = (price - QNT_IPO_PRICE) * totalVestedShares;
+            const ipoPct = ((price - QNT_IPO_PRICE) / QNT_IPO_PRICE) * 100;
+            const sign = ipoGain >= 0 ? '+' : '';
+            const color = ipoGain >= 0 ? 'var(--success)' : 'var(--danger)';
+            ipoEl.innerText = `${sign}${formatMoney(ipoGain)}`;
+            ipoEl.style.color = color;
+            ipoPctEl.innerText = `${sign}${ipoPct.toFixed(2)}% since IPO`;
+            ipoPctEl.style.color = color;
+        } else {
+            ipoEl.innerText = '—';
+            ipoEl.style.color = 'var(--text-muted)';
+            ipoPctEl.innerText = '';
+        }
 
         // 6. Render Visuals
         renderYearSummary(events, price, growthRate, taxRate);
@@ -715,6 +766,7 @@
             if (!meta || !meta.regularMarketPrice) throw new Error('No price in response');
 
             const livePrice = meta.regularMarketPrice;
+            livePreviousClose = meta.regularMarketPreviousClose || meta.chartPreviousClose || null;
             document.getElementById('sharePrice').value = livePrice.toFixed(2);
             const timeStr = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
             status.textContent = `Live · updated ${timeStr}`;
