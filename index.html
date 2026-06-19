@@ -210,7 +210,7 @@
                         <div class="stat-sub" id="valDailyPct" style="margin-top:3px;font-size:0.65rem;"></div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-label">vs IPO ($60 · Jun 4)</div>
+                        <div class="stat-label">Gain/Loss from IPO ($60 · Jun 4)</div>
                         <div class="stat-value" id="valIpoGain">—</div>
                         <div class="stat-sub" id="valIpoPct" style="margin-top:3px;font-size:0.65rem;"></div>
                     </div>
@@ -242,7 +242,7 @@
                         <div class="stat-sub" id="valDailyPctTotal" style="margin-top:3px;font-size:0.65rem;"></div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-label">vs IPO ($60 · Jun 4) Total</div>
+                        <div class="stat-label">Gain/Loss from IPO ($60 · Jun 4)</div>
                         <div class="stat-value" id="valIpoGainTotal">—</div>
                         <div class="stat-sub" id="valIpoPctTotal" style="margin-top:3px;font-size:0.65rem;"></div>
                     </div>
@@ -263,6 +263,7 @@
                         <thead>
                             <tr>
                                 <th>Year</th>
+                                <th>Shares Vesting</th>
                                 <th>Vested (Pre-Tax)</th>
                                 <th>Vested (Post-Tax)</th>
                                 <th>Unvested (Pre-Tax)</th>
@@ -616,10 +617,15 @@
 
         const currentYear = today.getFullYear();
         const endYear = currentYear + 5;
-        
+
+        // Seed previous year's cumulative vested shares so we can compute the annual delta
+        let prevAccVestedShares = 0;
+        const prevYearEnd = new Date(`${currentYear - 1}-12-31`);
+        events.forEach(e => { if (e.date <= prevYearEnd) prevAccVestedShares += e.shares; });
+
         for (let y = currentYear; y <= endYear; y++) {
             const yearEnd = new Date(`${y}-12-31`);
-            
+
             const yearsFromNow = (yearEnd - today) / (1000 * 60 * 60 * 24 * 365);
             const projectedPrice = currentPrice * Math.pow((1 + growthRate), Math.max(0, yearsFromNow));
 
@@ -637,14 +643,20 @@
                 }
             });
 
+            const annualNewShares = accVestedShares - prevAccVestedShares;
+            prevAccVestedShares = accVestedShares;
+
             const vestedGross = accVestedShares * projectedPrice;
             const vestedNet = vestedGross * (1 - taxRate);
             const unvestedGross = unvestedShares * projectedPrice;
             const total = vestedGross + unvestedGross;
 
+            const sharesStr = annualNewShares > 0 ? `+${annualNewShares.toFixed(0)} shares` : '—';
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td style="font-weight:bold">${y}</td>
+                <td style="color:var(--accent)">${sharesStr}</td>
                 <td>${formatMoney(vestedGross)}</td>
                 <td style="color:var(--success)">${formatMoney(vestedNet)}</td>
                 <td style="color:var(--text-muted)">${formatMoney(unvestedGross)}</td>
