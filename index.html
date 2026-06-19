@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSU Calculator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-hover: #0ea5e9;
+            --success: #4ade80;
+            --danger: #f87171;
+            --border: #334155;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 15px;
+            line-height: 1.5;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        h1 { font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--accent); }
+
+        /* --- LAYOUT GRID --- */
+        .grid {
+            display: grid;
+            gap: 20px;
+            /* Mobile Default: 1 Column */
+            grid-template-columns: 1fr; 
+            grid-template-areas: 
+                "main"
+                "sidebar";
+        }
+
+        /* Desktop: Side-by-Side (Sidebar Left, Main Right) */
+        @media (min-width: 1000px) {
+            .grid { 
+                grid-template-columns: 320px 1fr; 
+                grid-template-areas: "sidebar main";
+            } 
+        }
+
+        .input-panel { grid-area: sidebar; }
+        .output-panel { grid-area: main; }
+
+        /* --- CARDS & INPUTS --- */
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 { font-size: 1.1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; margin-top: 0; }
+
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px; }
+        
+        input {
+            width: 100%;
+            max-width: 100%; /* Fixes overflow */
+            background: var(--bg-color);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 10px; 
+            border-radius: 4px;
+            font-size: 1rem;
+            box-sizing: border-box; 
+        }
+        input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+        .btn {
+            background: var(--accent); color: var(--bg-color); border: none; padding: 12px;
+            border-radius: 4px; cursor: pointer; font-weight: 600; width: 100%; font-size: 1rem;
+        }
+        .btn-add { background: #334155; color: var(--text-main); margin-top: 10px; }
+
+        /* Grant Item Styling */
+        .grant-item {
+            background: rgba(255,255,255,0.05); padding: 10px; border-radius: 4px; margin-bottom: 10px;
+        }
+        .grant-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem; }
+        .remove-grant { color: var(--danger); cursor: pointer; padding: 0 5px; font-size: 1.2rem; }
+        
+        .grant-inputs { display: flex; gap: 10px; }
+        /* Fixes flex child overflow */
+        .grant-inputs > div { min-width: 0; } 
+
+        @media (max-width: 500px) { .grant-inputs { flex-direction: column; } }
+
+        /* Stats Grid */
+        .summary-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr; 
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        @media (min-width: 700px) { .summary-stats { grid-template-columns: repeat(4, 1fr); } }
+
+        .stat-box {
+            background: rgba(255,255,255,0.03); padding: 12px; border-radius: 6px; text-align: center;
+        }
+        .stat-value { font-size: clamp(0.82rem, 2vw, 1rem); font-weight: 700; color: var(--text-main); overflow-wrap: break-word; }
+        .stat-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+        .stat-sub { font-size: 0.6rem; color: var(--text-muted); }
+        
+        .val-gross { color: #fbbf24; }
+        .val-net { color: var(--success); }
+        .val-future { color: var(--accent); }
+
+        /* Tables */
+        .timeline-container { max-height: 400px; overflow-y: auto; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 500px; }
+        th { position: sticky; top: 0; background: var(--card-bg); text-align: left; padding: 8px; color: var(--text-muted); border-bottom: 2px solid var(--border); }
+        td { padding: 8px; border-bottom: 1px solid var(--border); }
+        .vested-row { opacity: 0.5; }
+        
+        .year-summary-table th { background: #2a384e; }
+        .year-summary-table tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+
+        .chart-container { position: relative; height: 300px; width: 100%; margin-bottom: 20px; }
+        
+        .price-display {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--success);
+            margin-top: 5px;
+            display: block;
+        }
+
+        select {
+            background: var(--bg-color);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+        .btn-refresh {
+            width: auto;
+            padding: 10px 14px;
+            background: var(--border);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            flex-shrink: 0;
+            transition: background 0.15s;
+        }
+        .btn-refresh:hover { background: #475569; }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .card-header h2 { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h1>RSU Calculator</h1>
+        <div style="font-size:0.8rem; color:var(--text-muted);">Today: <span id="currentDateDisplay"></span></div>
+    </div>
+
+    <div class="grid">
+        <div class="output-panel">
+            
+            <div class="card">
+                <h2>Current Snapshot (Today)</h2>
+                <div class="summary-stats">
+                    <div class="stat-box">
+                        <div class="stat-label">Vested (Pre-Tax)</div>
+                        <div class="stat-value val-gross" id="valVestedGross">$0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Vested (Post-Tax)</div>
+                        <div class="stat-value val-net" id="valVestedNet">$0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Unvested (Pre-Tax)</div>
+                        <div class="stat-value" id="valUnvested">$0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Total (Pre-Tax)</div>
+                        <div class="stat-value val-future" id="valTotal">$0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Projected Growth (5 Years)</h2>
+                <div class="chart-container">
+                    <canvas id="wealthChart"></canvas>
+                </div>
+            </div>
+
+             <div class="card">
+                <h2>Year-End Projections</h2>
+                <div class="timeline-container" style="max-height:none;">
+                    <table class="year-summary-table">
+                        <thead>
+                            <tr>
+                                <th>Year</th>
+                                <th>Vested (Pre-Tax)</th>
+                                <th>Vested (Post-Tax)</th>
+                                <th>Unvested (Pre-Tax)</th>
+                                <th>Total (Pre-Tax)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="yearSummaryBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>Detailed Vesting Events</h2>
+                    <select id="viewFilter" onchange="renderTimeline()">
+                        <option value="future" selected>Future Only</option>
+                        <option value="all">Show All</option>
+                    </select>
+                </div>
+                <div class="timeline-container">
+                    <table class="timeline-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Shares</th>
+                                <th>Value (Pre-Tax)</th>
+                                <th>Value (Post-Tax)</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="timelineBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-panel">
+            
+            <div class="card">
+                <h2>Assumptions</h2>
+                <div class="input-group">
+                    <label>Share Price ($) — <span id="priceSource" style="color:var(--text-muted)">Manual</span></label>
+                    <div style="display:flex; gap:8px;">
+                        <input type="number" id="sharePrice" value="50.00" step="0.01" min="0" onfocus="this.select()" oninput="calculate()" style="flex:1;">
+                        <button id="liveBtn" class="btn-refresh" onclick="fetchLivePrice()" title="Fetch live QNT price from NASDAQ">⟳</button>
+                    </div>
+                    <span id="priceStatus" class="price-display" style="font-size:0.72rem; margin-top:4px;"></span>
+                </div>
+                <div class="input-group">
+                    <label>Growth Rate (Annual %)</label>
+                    <input type="number" id="growthRate" value="15" step="0.1" onfocus="this.select()" oninput="calculate()">
+                </div>
+                <div class="input-group">
+                    <label>Tax Rate (%)</label>
+                    <input type="number" id="taxRate" value="35" onfocus="this.select()" oninput="calculate()">
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Future Grants</h2>
+                <div class="input-group">
+                    <label>Annual Grant Amount (Shares)</label>
+                    <input type="number" id="recurringShares" value="1000" onfocus="this.select()" oninput="calculate()">
+                </div>
+                <div class="input-group">
+                    <label>Next Grant Date</label>
+                    <input type="date" id="recurringDate" value="2026-12-20" onchange="calculate()">
+                </div>
+                <small style="color:var(--text-muted); font-size:0.75rem;">
+                    *Projects this grant repeating for 5 years.
+                </small>
+            </div>
+
+            <div class="card">
+                <h2>Past Grants</h2>
+                <div id="pastGrantsList"></div>
+                <button class="btn btn-add" onclick="addPastGrant()">+ Add Past Grant</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- STATE MANAGEMENT ---
+    let myChart = null;
+    let currentCalculatedEvents = [];
+    const today = new Date();
+    document.getElementById('currentDateDisplay').innerText = today.toLocaleDateString();
+
+    const QNT_IPO_DATE = new Date('2026-06-05');
+    const QNT_TICKER = 'QNT';
+
+    window.onload = function() {
+        if (localStorage.getItem('rsu_data_v9')) {
+            loadData();
+        } else if (localStorage.getItem('rsu_data_v8')) {
+            // Migrate from v8 (market cap) to v9 (direct share price)
+            try {
+                const old = JSON.parse(localStorage.getItem('rsu_data_v8'));
+                if (old.settings && old.settings.mcap) {
+                    const migratedPrice = ((parseFloat(old.settings.mcap) * 10) / 3).toFixed(2);
+                    old.settings.sharePrice = migratedPrice;
+                    delete old.settings.mcap;
+                }
+                localStorage.setItem('rsu_data_v9', JSON.stringify(old));
+            } catch(e) { console.error('Migration error', e); }
+            loadData();
+        } else {
+            // Default Requested Data (2021-2025)
+            const defaults = [
+                {d: '2021-11-29', s: 1000},
+                {d: '2022-07-27', s: 1000},
+                {d: '2023-12-21', s: 1000},
+                {d: '2024-12-23', s: 1000},
+                {d: '2025-12-20', s: 1000}
+            ];
+            
+            defaults.forEach(g => addPastGrant(g.d, g.s));
+            calculate();
+        }
+        initPriceStatus();
+        if (today >= QNT_IPO_DATE) fetchLivePrice();
+    }
+
+    function saveData() {
+        const data = {
+            settings: {
+                sharePrice: document.getElementById('sharePrice').value,
+                growth: document.getElementById('growthRate').value,
+                tax: document.getElementById('taxRate').value,
+                recShares: document.getElementById('recurringShares').value,
+                recDate: document.getElementById('recurringDate').value
+            },
+            past: getPastGrants()
+        };
+        localStorage.setItem('rsu_data_v9', JSON.stringify(data));
+    }
+
+    function loadData() {
+        try {
+            const saved = JSON.parse(localStorage.getItem('rsu_data_v9'));
+            if(saved.settings) {
+                document.getElementById('sharePrice').value = saved.settings.sharePrice || 50.00;
+                document.getElementById('growthRate').value = saved.settings.growth || 15;
+                document.getElementById('taxRate').value = saved.settings.tax || 35;
+                document.getElementById('recurringShares').value = saved.settings.recShares || 1000;
+                document.getElementById('recurringDate').value = saved.settings.recDate || '2026-12-20';
+            }
+            document.getElementById('pastGrantsList').innerHTML = '';
+            if(saved.past) saved.past.forEach(g => addPastGrant(g.date, g.shares));
+            calculate(false);
+        } catch(e) { console.error("Save data error", e); }
+    }
+
+    // --- DOM HELPERS ---
+    function addPastGrant(dateVal = '', sharesVal = '1000') {
+        const id = Date.now() + Math.random().toString().slice(2,5);
+        const div = document.createElement('div');
+        div.className = 'grant-item';
+        div.id = `grant-${id}`;
+        div.innerHTML = `
+            <div class="grant-header">
+                <span>Past Grant</span>
+                <span class="remove-grant" onclick="removeGrant('${id}')">&times;</span>
+            </div>
+            <div class="grant-inputs">
+                <div class="input-group" style="margin:0; flex:1;">
+                    <label>Date</label>
+                    <input type="date" class="g-date" value="${dateVal}" onchange="calculate()">
+                </div>
+                <div class="input-group" style="margin:0; flex:1;">
+                    <label>Shares</label>
+                    <input type="number" class="g-shares" value="${sharesVal}" onfocus="this.select()" oninput="calculate()">
+                </div>
+            </div>
+        `;
+        document.getElementById('pastGrantsList').appendChild(div);
+    }
+
+    function removeGrant(id) { document.getElementById(`grant-${id}`).remove(); calculate(); }
+
+    function getPastGrants() {
+        const list = [];
+        document.querySelectorAll('#pastGrantsList .grant-item').forEach(div => {
+            list.push({
+                date: div.querySelector('.g-date').value,
+                shares: div.querySelector('.g-shares').value
+            });
+        });
+        return list;
+    }
+
+    // --- CALCULATION ENGINE ---
+
+    function calculate(shouldSave = true) {
+        // 1. Get Price
+        const price = parseFloat(document.getElementById('sharePrice').value) || 0;
+
+        const growthRate = parseFloat(document.getElementById('growthRate').value) / 100 || 0;
+        const taxRate = parseFloat(document.getElementById('taxRate').value) / 100 || 0;
+
+        // 2. Collect Grants
+        let allGrants = getPastGrants().map(g => ({...g, origin: 'past'}));
+        
+        const recShares = parseFloat(document.getElementById('recurringShares').value) || 0;
+        const recDateStr = document.getElementById('recurringDate').value;
+        if(recShares > 0 && recDateStr) {
+            const baseDate = new Date(recDateStr);
+            for(let i=0; i<5; i++) {
+                let d = new Date(baseDate);
+                d.setFullYear(d.getFullYear() + i);
+                if(d > today) {
+                    allGrants.push({
+                        date: d.toISOString().split('T')[0],
+                        shares: recShares,
+                        origin: 'future'
+                    });
+                }
+            }
+        }
+
+        // 3. Generate Events (4 Years Annual)
+        let events = [];
+        allGrants.forEach(g => {
+            if(g.date && g.shares > 0) {
+                const grantDate = new Date(g.date);
+                const shareCount = parseFloat(g.shares);
+                
+                for (let i = 1; i <= 4; i++) {
+                    let vestDate = new Date(grantDate);
+                    vestDate.setFullYear(vestDate.getFullYear() + i);
+                    events.push({ 
+                        date: vestDate, 
+                        grantDate: grantDate, 
+                        shares: shareCount * 0.25, 
+                        origin: g.origin 
+                    });
+                }
+            }
+        });
+        events.sort((a, b) => a.date - b.date);
+
+        // 4. Process Values
+        let snapshotVestedGross = 0;
+        let snapshotVestedNet = 0;
+        let snapshotUnvestedGross = 0; 
+        let snapshotTotalGross = 0;
+
+        events.forEach(e => {
+            e.isVested = e.date <= today;
+            
+            // Calculate Projected Price
+            let yearsInFuture = (e.date - today) / (1000 * 60 * 60 * 24 * 365);
+            if (yearsInFuture < 0) yearsInFuture = 0;
+            
+            e.projectedPrice = price * Math.pow((1 + growthRate), yearsInFuture);
+            e.grossVal = e.shares * e.projectedPrice;
+            e.netVal = e.grossVal * (1 - taxRate);
+
+            // --- STRICT SNAPSHOT LOGIC (always at current price, not projected) ---
+            if (e.origin === 'past') {
+                const snapVal = e.shares * price;
+                const snapNet = snapVal * (1 - taxRate);
+                if (e.isVested) {
+                    snapshotVestedGross += snapVal;
+                    snapshotVestedNet += snapNet;
+                } else {
+                    snapshotUnvestedGross += snapVal;
+                }
+                snapshotTotalGross += snapVal;
+            }
+        });
+
+        currentCalculatedEvents = events;
+
+        // 5. Update Header Stats
+        document.getElementById('valVestedGross').innerText = formatMoney(snapshotVestedGross);
+        document.getElementById('valVestedNet').innerText = formatMoney(snapshotVestedNet);
+        document.getElementById('valUnvested').innerText = formatMoney(snapshotUnvestedGross);
+        document.getElementById('valTotal').innerText = formatMoney(snapshotTotalGross);
+
+        // 6. Render Visuals
+        renderYearSummary(events, price, growthRate, taxRate);
+        renderTimeline();
+        renderChart(events);
+
+        if(shouldSave) saveData();
+    }
+
+    function renderYearSummary(events, currentPrice, growthRate, taxRate) {
+        const tbody = document.getElementById('yearSummaryBody');
+        tbody.innerHTML = '';
+
+        const currentYear = today.getFullYear();
+        const endYear = currentYear + 5;
+        
+        for (let y = currentYear; y <= endYear; y++) {
+            const yearEnd = new Date(`${y}-12-31`);
+            
+            const yearsFromNow = (yearEnd - today) / (1000 * 60 * 60 * 24 * 365);
+            const projectedPrice = currentPrice * Math.pow((1 + growthRate), Math.max(0, yearsFromNow));
+
+            let accVestedShares = 0;
+            let unvestedShares = 0;
+
+            events.forEach(e => {
+                if (e.date <= yearEnd) {
+                    accVestedShares += e.shares;
+                } else {
+                    // CRITICAL LOGIC: Only count "Unvested" if the GRANT DATE has occurred by this year end.
+                    if (e.grantDate <= yearEnd) {
+                        unvestedShares += e.shares;
+                    }
+                }
+            });
+
+            const vestedGross = accVestedShares * projectedPrice;
+            const vestedNet = vestedGross * (1 - taxRate);
+            const unvestedGross = unvestedShares * projectedPrice;
+            const total = vestedGross + unvestedGross;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="font-weight:bold">${y}</td>
+                <td>${formatMoney(vestedGross)}</td>
+                <td style="color:var(--success)">${formatMoney(vestedNet)}</td>
+                <td style="color:var(--text-muted)">${formatMoney(unvestedGross)}</td>
+                <td style="color:var(--accent); font-weight:bold">${formatMoney(total)}</td>
+            `;
+            tbody.appendChild(tr);
+        }
+    }
+
+    function renderTimeline() {
+        const filter = document.getElementById('viewFilter').value;
+        const tbody = document.getElementById('timelineBody');
+        tbody.innerHTML = '';
+
+        currentCalculatedEvents.forEach(e => {
+            if (filter === 'future' && e.isVested) return;
+            
+            const tr = document.createElement('tr');
+            if (e.isVested) tr.className = 'vested-row';
+            
+            const dateStr = e.date.toLocaleDateString(undefined, {
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric'
+            });
+
+            tr.innerHTML = `
+                <td>${dateStr}</td>
+                <td>${e.shares.toFixed(0)}</td>
+                <td>${formatMoney(e.grossVal)}</td>
+                <td style="color:${e.isVested ? 'inherit' : 'var(--success)'}">${formatMoney(e.netVal)}</td>
+                <td>${e.isVested ? '✅' : '⏳'}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderChart(events) {
+        const ctx = document.getElementById('wealthChart').getContext('2d');
+        const labels = [];
+        const dataVested = [];
+
+        // Quarterly Data Points
+        const quarters = [2, 5, 8, 11]; 
+        const currentYear = today.getFullYear();
+        
+        for (let i = 0; i < 20; i++) { 
+            const offset = Math.floor(i / 4);
+            const qIndex = i % 4;
+            const year = currentYear + offset;
+            const month = quarters[qIndex];
+            
+            const qDate = new Date(year, month + 1, 0); 
+            
+            if (qDate < today) continue; 
+
+            labels.push(`Q${qIndex+1} '${year.toString().slice(2)}`);
+
+            let val = 0;
+            events.forEach(e => {
+                if (e.date <= qDate) {
+                    val += e.grossVal; 
+                }
+            });
+            dataVested.push(val);
+        }
+
+        if (myChart) myChart.destroy();
+
+        myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Projected Vested Wealth',
+                    data: dataVested,
+                    borderColor: '#38bdf8',
+                    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8', callback: (val) => {
+                            if (val >= 1000000) return '$' + (val / 1000000).toFixed(1) + 'M';
+                            if (val >= 1000) return '$' + Math.round(val / 1000) + 'K';
+                            return '$' + val;
+                        }}
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#94a3b8', maxTicksLimit: 10, maxRotation: 45, minRotation: 45 }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => formatMoney(context.raw)
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function formatMoney(num) {
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
+    }
+
+    function initPriceStatus() {
+        const status = document.getElementById('priceStatus');
+        const source = document.getElementById('priceSource');
+        if (today < QNT_IPO_DATE) {
+            const ipoStr = QNT_IPO_DATE.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+            status.textContent = `QNT IPO pending (${ipoStr}) — enter price manually`;
+            status.style.color = 'var(--text-muted)';
+            source.textContent = 'Manual';
+            source.style.color = 'var(--text-muted)';
+        } else {
+            status.textContent = 'Click ⟳ to fetch live NASDAQ price';
+            status.style.color = 'var(--text-muted)';
+        }
+    }
+
+    async function fetchLivePrice() {
+        const btn = document.getElementById('liveBtn');
+        const status = document.getElementById('priceStatus');
+        const source = document.getElementById('priceSource');
+
+        if (today < QNT_IPO_DATE) {
+            const ipoStr = QNT_IPO_DATE.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+            status.textContent = `QNT IPO pending (${ipoStr}) — enter price manually`;
+            status.style.color = 'var(--text-muted)';
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = '…';
+        status.textContent = 'Fetching live price…';
+        status.style.color = 'var(--text-muted)';
+
+        // Yahoo Finance blocks direct browser fetches (CORS). Try proxies in order.
+        const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${QNT_TICKER}?interval=1d&range=1d`;
+        const strategies = [
+            () => fetch(yahooUrl).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+            () => fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl)}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+            () => fetch(`https://corsproxy.io/?${encodeURIComponent(yahooUrl)}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+        ];
+
+        try {
+            let json = null;
+            let lastError = null;
+            for (const attempt of strategies) {
+                try { json = await attempt(); break; } catch(e) { lastError = e; }
+            }
+            if (!json) throw lastError || new Error('All endpoints failed');
+
+            const meta = json?.chart?.result?.[0]?.meta;
+            if (!meta || !meta.regularMarketPrice) throw new Error('No price in response');
+
+            const livePrice = meta.regularMarketPrice;
+            document.getElementById('sharePrice').value = livePrice.toFixed(2);
+            const timeStr = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+            status.textContent = `Live · updated ${timeStr}`;
+            status.style.color = 'var(--success)';
+            source.textContent = 'Live (NASDAQ)';
+            source.style.color = 'var(--success)';
+            calculate();
+        } catch(e) {
+            status.textContent = `Could not fetch live price (${e.message}) — using manual value`;
+            status.style.color = 'var(--danger)';
+            source.textContent = 'Manual';
+            source.style.color = 'var(--text-muted)';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '⟳';
+        }
+    }
+</script>
+</body>
+</html>
