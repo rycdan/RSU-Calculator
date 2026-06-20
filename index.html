@@ -631,10 +631,15 @@
 
             let accVestedShares = 0;
             let unvestedShares = 0;
+            let pendingSharesThisYear = 0;  // vest date falls in year Y but hasn't happened yet
+            const yearStart = new Date(`${y}-01-01`);
 
             events.forEach(e => {
                 if (e.date <= yearEnd) {
                     accVestedShares += e.shares;
+                    if (e.date >= yearStart && e.date > today) {
+                        pendingSharesThisYear += e.shares;
+                    }
                 } else {
                     // CRITICAL LOGIC: Only count "Unvested" if the GRANT DATE has occurred by this year end.
                     if (e.grantDate <= yearEnd) {
@@ -651,12 +656,19 @@
             const unvestedGross = unvestedShares * projectedPrice;
             const total = vestedGross + unvestedGross;
 
-            const sharesStr = annualNewShares > 0 ? `+${annualNewShares.toFixed(0)} shares` : '—';
+            const pendingValue = pendingSharesThisYear * projectedPrice;
+            let sharesCell = '—';
+            if (annualNewShares > 0) {
+                sharesCell = `+${annualNewShares.toFixed(0)} shares`;
+                if (pendingSharesThisYear > 0) {
+                    sharesCell += `<br><small style="color:var(--text-muted);font-weight:normal">${formatMoney(pendingValue)} pending</small>`;
+                }
+            }
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td style="font-weight:bold">${y}</td>
-                <td style="color:var(--accent)">${sharesStr}</td>
+                <td style="color:var(--accent)">${sharesCell}</td>
                 <td>${formatMoney(vestedGross)}</td>
                 <td style="color:var(--success)">${formatMoney(vestedNet)}</td>
                 <td style="color:var(--text-muted)">${formatMoney(unvestedGross)}</td>
